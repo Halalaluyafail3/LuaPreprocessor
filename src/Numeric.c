@@ -1,0 +1,455 @@
+#include<stddef.h>
+#include<tgmath.h>
+#include<stdbool.h>
+#include"Numeric.h"
+#include"NoLocale.h"
+#include"lua-5.4.4/src/lua.h"
+#include"lua-5.4.4/src/lauxlib.h"
+/* assume lua_Integer to lua_Number conversions never fail, specifically LUA_MININTEGER must not be outside the range of values representable by lua_Number */
+bool IntegerFloatFitsInInteger(lua_Number IntegerFloat){/* integers, infinities, and NaNs are ok as arguments */
+	return IntegerFloat>=LUA_MININTEGER&&IntegerFloat<-(lua_Number)LUA_MININTEGER;
+}
+bool FloatFitsInInteger(lua_Number Float){
+	lua_Number Floored=floor(Float);
+	return Float==Floored&&IntegerFloatFitsInInteger(Floored);
+}
+size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrInteger*restrict Output){
+	if(!Length){
+		return 0;
+	}
+	char Reading=*String;
+	size_t Index;
+	bool IsPositive=Reading!='-';
+	if(!IsPositive||Reading=='+'){
+		if(Length==1){
+			return 0;
+		}
+		Reading=String[Index=1];
+	}else{
+		Index=0;
+	}
+	size_t Start;
+	lua_Number Exponent;
+	size_t DigitsAmount;
+	#define READ_TO_FIRST_DIGIT(...)\
+		for(;;){\
+			if(++ExponentIndex==Length){\
+				Length=Index;\
+				__VA_ARGS__;\
+			}\
+			if(IsDigit(Reading=String[ExponentIndex])){\
+				break;\
+			}\
+			if(Reading!='_'){\
+				Length=Index;\
+				__VA_ARGS__;\
+			}\
+		}
+	#define PARSE_EXPONENT(...)\
+		size_t ExponentIndex=Index+1;\
+		bool ExponentIsPositive;\
+		for(;;){\
+			if(ExponentIndex==Length){\
+				Length=Index;\
+				__VA_ARGS__;\
+			}\
+			if(IsDigit(Reading=String[ExponentIndex])){\
+				ExponentIsPositive=1;\
+				break;\
+			}\
+			if(Reading=='+'){\
+				ExponentIsPositive=1;\
+				READ_TO_FIRST_DIGIT(__VA_ARGS__);\
+				break;\
+			}\
+			if(Reading=='-'){\
+				ExponentIsPositive=0;\
+				READ_TO_FIRST_DIGIT(__VA_ARGS__);\
+				break;\
+			}\
+			if(Reading!='_'){\
+				Length=Index;\
+				__VA_ARGS__;\
+			}\
+			++ExponentIndex;\
+		}\
+		size_t ExponentStart=ExponentIndex;\
+		while(++ExponentIndex!=Length){\
+			if(!IsDigit(Reading=String[ExponentIndex])&&Reading!='_'){\
+				Length=ExponentIndex;\
+				break;\
+			}\
+		}\
+		Exponent=0;\
+		size_t DigitExponent=0;\
+		do{\
+			if(IsDigit(Reading=String[--ExponentIndex])){\
+				Exponent+=CharacterToDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),(lua_Number)DigitExponent++);\
+			}\
+		}while(ExponentIndex!=ExponentStart);\
+		Exponent*=ExponentIsPositive*2-1
+	if(Reading=='0'){
+		do{
+			if(++Index==Length){
+				Output->IsInteger=1;
+				Output->Integer=0;
+				return Length;
+			}
+		}while((Reading=String[Index])=='_');
+		if(IsDigit(Reading)){
+			goto Decimal;
+		}
+		Start=Index;
+		if(Reading=='.'){
+			goto Dot;
+		}
+		if((Reading=MakeUppercase(Reading))=='E'){
+			for(;;){
+				if(++Index==Length){
+					Output->IsInteger=1;
+					Output->Integer=0;
+					return Start;
+				}
+				if(IsDigit(Reading=String[Index])){
+					break;
+				}
+				if(Reading=='+'||Reading=='-'){
+					for(;;){
+						if(++Index==Length){
+							Output->IsInteger=1;
+							Output->Integer=0;
+							return Start;
+						}
+						if(IsDigit(Reading=String[Index])){
+							break;
+						}
+						if(Reading!='_'){
+							Output->IsInteger=1;
+							Output->Integer=0;
+							return Start;
+						}
+					}
+					break;
+				}
+				if(Reading!='_'){
+					Output->IsInteger=1;
+					Output->Integer=0;
+					return Start;
+				}
+			}
+			Output->IsInteger=0;
+			Output->Float=(IsPositive*2-1)*(lua_Number)0;
+			for(;;){
+				if(++Index==Length){
+					return Length;
+				}
+				if(!IsDigit(Reading=String[Index])&&Reading!='_'){
+					return Index;
+				}
+			}
+		}
+		#define PARSE_PREFIXED(Name,Radix,RadixLog2)\
+			for(;;){\
+				if(++Index==Length){\
+					Output->IsInteger=1;\
+					Output->Integer=0;\
+					return Start;\
+				}\
+				if(Is##Name##Digit(Reading=String[Index])){\
+					Start=Index;\
+					break;\
+				}\
+				if(Reading=='.'){\
+					for(;;){\
+						if(++Index==Length){\
+							Output->IsInteger=1;\
+							Output->Integer=0;\
+							return Start;\
+						}\
+						if(Is##Name##Digit(Reading=String[Index])){\
+							DigitsAmount=1;\
+							goto Name##Dot;\
+						}\
+						if(Reading!='_'){\
+							Output->IsInteger=1;\
+							Output->Integer=0;\
+							return Start;\
+						}\
+					}\
+				}\
+				if(Reading!='_'){\
+					Output->IsInteger=1;\
+					Output->Integer=0;\
+					return Start;\
+				}\
+			}\
+			while(++Index!=Length){\
+				if(!Is##Name##Digit(Reading=String[Index])&&Reading!='_'){\
+					if(Reading=='.'){\
+						DigitsAmount=0;\
+						goto Name##Dot;\
+					}\
+					if(MakeUppercase(Reading)!='P'){\
+						Length=Index;\
+						break;\
+					}\
+					PARSE_EXPONENT(Exponent=0;goto Name##Float);\
+					goto Name##Float;\
+				}\
+			}\
+			while((Reading=String[--Index])=='_');\
+			Output->IsInteger=1;\
+			Output->Integer=CharacterTo##Name##Digit(Reading);\
+			for(lua_Unsigned Multiple=1;Index!=Start;){\
+				if((Reading=String[--Index])!='_'){\
+					Output->Integer+=CharacterTo##Name##Digit(Reading)*(Multiple*=(lua_Unsigned)(Radix));\
+				}\
+			}\
+			Output->Integer*=((lua_Unsigned)IsPositive<<1)-1;\
+			return Length;\
+			Name##Dot:;\
+			while(++Index!=Length){\
+				if(Is##Name##Digit(Reading=String[Index])){\
+					++DigitsAmount;\
+				}else if(Reading!='_'){\
+					if(MakeUppercase(Reading)!='P'){\
+						Length=Index;\
+						break;\
+					}\
+					PARSE_EXPONENT(Exponent=-(lua_Number)DigitsAmount*(RadixLog2);goto Name##Float);\
+					Exponent-=(lua_Number)DigitsAmount*(RadixLog2);\
+					goto Name##Float;\
+				}\
+			}\
+			Exponent=-(lua_Number)DigitsAmount*(RadixLog2);\
+			Name##Float:;\
+			Output->IsInteger=0;\
+			Output->Float=0;\
+			DigitsAmount=0;\
+			do{\
+				if(Is##Name##Digit(Reading=String[--Index])){\
+					lua_Number Multiple=pow((lua_Number)((Reading!='0')+1),Exponent+(lua_Number)DigitsAmount++*(RadixLog2));\
+					Output->Float+=Multiple?CharacterTo##Name##Digit(Reading)*Multiple:(lua_Number)CharacterTo##Name##Digit(Reading)/(Radix)*pow((lua_Number)2,Exponent+(lua_Number)DigitsAmount*(RadixLog2));\
+				}\
+			}while(Index!=Start);\
+			Output->Float*=IsPositive*2-1;\
+			return Length
+		if(Reading=='X'){
+			PARSE_PREFIXED(Hexadecimal,16,4);
+		}
+		if(Reading=='O'){
+			PARSE_PREFIXED(Octal,8,3);
+		}
+		if(Reading=='B'){
+			PARSE_PREFIXED(Binary,2,1);
+		}
+		#undef PARSE_PREFIXED
+		Output->IsInteger=1;
+		Output->Integer=0;
+		return Index;
+	}
+	if(IsDigit(Reading)){
+		Decimal:;
+		for(Start=Index;;){
+			if(++Index==Length){
+				goto Integer;
+			}
+			if(!IsDigit(Reading=String[Index])&&Reading!='_'){
+				if(Reading=='.'){
+					break;
+				}
+				if(MakeUppercase(Reading)!='E'){
+					Length=Index;
+					goto Integer;
+				}
+				PARSE_EXPONENT(Exponent=0;goto Float);
+				goto Float;
+			}
+		}
+		Dot:;
+		for(DigitsAmount=0;++Index!=Length;){
+			if(IsDigit(Reading=String[Index])){
+				++DigitsAmount;
+			}else if(Reading!='_'){
+				if(MakeUppercase(Reading)!='E'){
+					Length=Index;
+					break;
+				}
+				PARSE_EXPONENT(Exponent=-(lua_Number)DigitsAmount;goto Float);
+				Exponent-=DigitsAmount;
+				goto Float;
+			}
+		}
+		Exponent=-(lua_Number)DigitsAmount;
+		Float:;
+		Output->IsInteger=0;
+		Output->Float=0;
+		DigitsAmount=0;
+		do{
+			if(IsDigit(Reading=String[--Index])){
+				lua_Number Multiple=pow((lua_Number)((Reading!='0')*9+1),Exponent+DigitsAmount++);
+				Output->Float+=Multiple?CharacterToDigit(Reading)*Multiple:(lua_Number)CharacterToDigit(Reading)/10*pow((lua_Number)10,Exponent+DigitsAmount);
+			}
+		}while(Index!=Start);
+		Output->Float*=IsPositive*2-1;
+		return Length;
+		Integer:;
+		for(DigitsAmount=1;(Reading=String[--Index])=='_';);
+		if(IsPositive){
+			Output->Integer=CharacterToDigit(Reading);
+			for(size_t Multiple=1;;){
+				if(Index==Start){
+					Output->IsInteger=1;
+					return Length;
+				}
+				if((Reading=String[--Index])=='0'){
+					Multiple=Multiple>LUA_MAXINTEGER/10?LUA_MAXINTEGER:Multiple*10;
+					++DigitsAmount;
+				}else if(IsDigit(Reading)){
+					int Digit=CharacterToDigit(Reading);
+					if(Multiple>LUA_MAXINTEGER/10){
+						Output->Float=Output->Integer+Digit*pow((lua_Number)10,DigitsAmount++);
+						break;
+					}
+					Multiple*=10;
+					if(Multiple>LUA_MAXINTEGER/Digit){
+						Output->Float=Output->Integer+(lua_Number)Digit*Multiple;
+						break;
+					}
+					lua_Integer DigitMultiple=Digit*Multiple;
+					if(DigitMultiple>LUA_MAXINTEGER-Output->Integer){
+						Output->Float=(lua_Number)Output->Integer+DigitMultiple;
+						break;
+					}
+					Output->Integer+=DigitMultiple;
+					++DigitsAmount;
+				}
+			}
+			while(Index!=Start){
+				if(IsDigit(Reading=String[--Index])){
+					Output->Float+=CharacterToDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),DigitsAmount++);
+				}
+			}
+		}else{
+			Output->Integer=-CharacterToDigit(Reading);
+			for(size_t Multiple=-1;;){
+				if(Index==Start){
+					Output->IsInteger=1;
+					return Length;
+				}
+				if((Reading=String[--Index])=='0'){
+					Multiple=Multiple<LUA_MININTEGER/10?LUA_MININTEGER:Multiple*10;
+					++DigitsAmount;
+				}else if(IsDigit(Reading)){
+					int Digit=CharacterToDigit(Reading);
+					if(Multiple<LUA_MININTEGER/10){
+						Output->Float=Output->Integer-Digit*pow((lua_Number)10,DigitsAmount++);
+						break;
+					}
+					Multiple*=10;
+					if(Multiple<LUA_MININTEGER/Digit){
+						Output->Float=Output->Integer+(lua_Number)Digit*Multiple;
+						break;
+					}
+					lua_Integer DigitMultiple=Digit*Multiple;
+					if(DigitMultiple<LUA_MININTEGER-Output->Integer){
+						Output->Float=(lua_Number)Output->Integer+DigitMultiple;
+						break;
+					}
+					Output->Integer+=DigitMultiple;
+					++DigitsAmount;
+				}
+			}
+			while(Index!=Start){
+				if(IsDigit(Reading=String[--Index])){
+					Output->Float-=CharacterToDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),DigitsAmount++);
+				}
+			}
+		}
+		Output->IsInteger=0;
+		return Length;
+	}
+	if(Reading=='.'){
+		if((Start=Index+1)==Length||!IsDigit(String[Start])){
+			return 0;
+		}
+		DigitsAmount=1;
+		for(Index+=2;;){
+			if(Index==Length){
+				Exponent=0;
+				break;
+			}
+			if(IsDigit(Reading=String[Index])){
+				++DigitsAmount;
+			}else if(Reading!='_'){
+				if(MakeUppercase(Reading)!='E'){
+					Exponent=0;
+					Length=Index;
+					break;
+				}
+				PARSE_EXPONENT(Exponent=0;goto Exit);
+				break;
+			}
+			++Index;
+		}
+		Exit:;
+		Output->IsInteger=0;
+		Output->Float=0;
+		do{
+			if(IsDigit(Reading=String[--Index])){
+				lua_Number Multiple=pow((lua_Number)((Reading!='0')*9+1),Exponent-DigitsAmount--);
+				Output->Float+=Multiple?CharacterToDigit(Reading)*Multiple:(lua_Number)CharacterToDigit(Reading)/10*pow((lua_Number)10,Exponent-DigitsAmount);
+			}
+		}while(Index!=Start);
+		Output->Float*=IsPositive*2-1;
+		return Length;
+	}
+	#undef READ_TO_FIRST_DIGIT
+	#undef PARSE_EXPONENT
+	if((Reading=MakeUppercase(Reading))=='I'){
+		if(Length<Index+3||MakeUppercase(String[Index+1])!='N'||MakeUppercase(String[Index+2])!='F'){
+			return 0;
+		}
+		Output->IsInteger=0;
+		#if LUA_FLOAT_TYPE==LUA_FLOAT_FLOAT
+			#define HUGE HUGE_VALF
+		#elif LUA_FLOAT_TYPE==LUA_FLOAT_DOUBLE
+			#define HUGE HUGE_VAL
+		#elif LUA_FLOAT_TYPE==LUA_FLOAT_LONGDOUBLE
+			#define HUGE HUGE_VALL
+		#else
+			#error"unkown float type"
+		#endif
+		Output->Float=(IsPositive*2-1)*HUGE;
+		#undef HUGE
+		return Index+(Length<Index+8||MakeUppercase(String[Index+3])!='I'||MakeUppercase(String[Index+4])!='N'||MakeUppercase(String[Index+5])!='I'||MakeUppercase(String[Index+6])!='T'||MakeUppercase(String[Index+7])!='Y'?3:8);
+	}
+	#ifdef NAN
+		if(Reading=='N'){
+			if(Length<Index+3||MakeUppercase(String[Index+1])!='A'||MakeUppercase(String[Index+2])!='N'){
+				return 0;
+			}
+			Output->IsInteger=0;
+			Output->Float=NAN;
+			if(Length<Index+5||String[Index+3]!='('){
+				return 3;
+			}
+			if((Reading=String[Index+4])==')'){
+				return 5;
+			}
+			if(!IsAlphanumeric(Reading)&&Reading!='_'){
+				return 3;
+			}
+			for(Index+=5;Index!=Length;){
+				if((Reading=String[Index++])==')'){
+					return Index;
+				}
+				if(!IsAlphanumeric(Reading)&&Reading!='_'){
+					return 3;
+				}
+			}
+			return 3;
+		}
+	#endif
+	return 0;
+}
