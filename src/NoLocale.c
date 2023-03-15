@@ -244,18 +244,18 @@ bool IsSpace(char Character){
 		}
 #endif
 #define SAVE_LOCALE(Returned,Name,Prototype,Expression)\
-	typeof(Returned)C##Name Prototype{\
+	Returned C##Name Prototype{\
 		BEFORE_CALL(C##Name);\
-		typeof(Returned)Result=Name Expression;\
+		Returned Result=Name Expression;\
 		AFTER_CALL(C##Name);\
 		return Result;\
 	}
 #define SAVE_LOCALE_VARIADIC(Returned,Name,Prototype,Last,Expression)\
-	typeof(Returned)C##Name Prototype{\
+	Returned C##Name Prototype{\
 		BEFORE_CALL(C##Name);\
 		va_list Arguments;\
 		va_start(Arguments,Last);\
-		typeof(Returned)Result=v##Name Expression;\
+		Returned Result=v##Name Expression;\
 		va_end(Arguments);\
 		AFTER_CALL(C##Name);\
 		return Result;\
