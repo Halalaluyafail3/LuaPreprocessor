@@ -3,8 +3,8 @@
 #include<stdbool.h>
 #include"Numeric.h"
 #include"NoLocale.h"
-#include"lua-5.4.4/src_new/lua.h"
-#include"lua-5.4.4/src_new/lauxlib.h"
+#include"lua-5.4.4/src/lua.h"
+#include"lua-5.4.4/src/lauxlib.h"
 /* assume lua_Integer to lua_Number conversions never fail, specifically LUA_MININTEGER must not be outside the range of values representable by lua_Number */
 bool IntegerFloatFitsInInteger(lua_Number IntegerFloat){/* integers, infinities, and NaNs are ok as arguments */
 	return IntegerFloat>=LUA_MININTEGER&&IntegerFloat<-(lua_Number)LUA_MININTEGER;
