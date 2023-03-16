@@ -3,8 +3,8 @@
 #include<stdbool.h>
 #include"Numeric.h"
 #include"NoLocale.h"
-#include"lua-5.4.4/src/lua.h"
-#include"lua-5.4.4/src/lauxlib.h"
+#include"lua-5.4.4/src_new/lua.h"
+#include"lua-5.4.4/src_new/lauxlib.h"
 /* assume lua_Integer to lua_Number conversions never fail, specifically LUA_MININTEGER must not be outside the range of values representable by lua_Number */
 bool IntegerFloatFitsInInteger(lua_Number IntegerFloat){/* integers, infinities, and NaNs are ok as arguments */
 	return IntegerFloat>=LUA_MININTEGER&&IntegerFloat<-(lua_Number)LUA_MININTEGER;
@@ -412,16 +412,14 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		}
 		Output->IsInteger=0;
 		#if LUA_FLOAT_TYPE==LUA_FLOAT_FLOAT
-			#define HUGE HUGE_VALF
+			Output->Float=(IsPositive*2-1)*HUGE_VALF;
 		#elif LUA_FLOAT_TYPE==LUA_FLOAT_DOUBLE
-			#define HUGE HUGE_VAL
+			Output->Float=(IsPositive*2-1)*HUGE_VAL;
 		#elif LUA_FLOAT_TYPE==LUA_FLOAT_LONGDOUBLE
-			#define HUGE HUGE_VALL
+			Output->Float=(IsPositive*2-1)*HUGE_VALL;
 		#else
 			#error"unkown float type"
 		#endif
-		Output->Float=(IsPositive*2-1)*HUGE;
-		#undef HUGE
 		return Index+(Length<Index+8||MakeUppercase(String[Index+3])!='I'||MakeUppercase(String[Index+4])!='N'||MakeUppercase(String[Index+5])!='I'||MakeUppercase(String[Index+6])!='T'||MakeUppercase(String[Index+7])!='Y'?3:8);
 	}
 	#ifdef NAN
