@@ -2139,6 +2139,9 @@ static int MacroGetError(lua_State*L){
 }
 static int MacroSetError(lua_State*L){
 	PreprocessorState*State=GetPreprocessorStateRaw(L,1);
+	if(!State->Error.Message&&!State->CursorStart){
+		luaL_error(L,"invalid use of cursor");
+	}
 	size_t Length;
 	const char*String=luaL_checklstring(L,2,&Length);
 	switch(State->Error.Type){
