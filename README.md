@@ -34,7 +34,7 @@ The preprocessor fundementally performs token manipulation: a sequence of tokens
 
 These extensions are only present when the preprocessor is scanning for tokens, the standard Lua compiler will still be the same. When converting tokens into a string representation, numeric constants and strings literals will be written in a format that is valid in standard Lua.
 
-The preprocessor converts input file to tokens, scanning left to right and doing macro expansions. The result is written to the output file.
+The preprocessor converts the input file to tokens, scanning left to right and doing macro expansions. The result is written to the output file.
 
 Each symbol has an associated amount of 'not nows', which indicates that a symbol has no special meaning. These can be directly specified by putting one or more `\` characters before a symbol, each backslash adds one notnow to the symbol. Space characters will be ignored, e.g. `\ \ $` is allowed. This is intended to suppress macro expansion, or to use unbalanced brackets for functions that use bracketed token sequences. In a context where a symbol always has a special meaning, the number of 'not nows' must be zero. Each time a symbol with notnows is checked for special meaning, a 'not now' will be removed. A symbol shouldn't have 'not nows' when converting it into a string representation.
 
@@ -81,7 +81,7 @@ $lua(foo(x)) -- 2, uses globals defined before
 $defined defined -- true
 $lua(
     (...):get_macros().x = {
-        y = function()end -- defined just for the example
+        y = function()end -- this is defined just for the example
     }
 )
 $defined x.y -- true
