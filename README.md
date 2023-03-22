@@ -29,7 +29,7 @@ The preprocessor fundementally performs token manipulation: a sequence of tokens
 * String literals may contain unescaped end of line sequences, they will be interpreted as if they were escaped.
 * The escape sequence `\s` will result in a space character, this is intended to stop a `\z` escape sequnce while adding a space.
 * Binary and octal literals are supported, which work very similarly to hexadecimal literals (even allowing floating point constants in binary and octal).
-* Underscore digit separators are allowed in all positions after the first digit, e.g. `123_456.789_123` or the extreme case `1_2_._3_4_e_+_5_`. Underscores cannot be placed prior to a digit, preventing numbers such as `_123_456` and `._123` that would be ambiguous with identifiers.
+* Underscore digit separators are allowed in all positions after the first digit, e.g. `123_456.789_123` or the extreme case `1_2_._3_4_e_+_5_`. Underscores cannot be placed prior to a digit, preventing numbers such as `_123_456` and `._123` that would be ambiguous with names.
 * The characters ``@!`?$`` are allowed outside of string literals as single character symbols.
 
 These extensions are only present when the preprocessor is scanning for tokens, the standard Lua compiler will still be the same. When converting tokens into a string representation, numeric constants and strings literals will be written in a format that is valid in standard Lua.
@@ -40,7 +40,7 @@ Each symbol has an associated amount of 'not nows', which indicates that a symbo
 
 Macro expansions are done using a `$` with no 'not nows'. After the `$`, one or more string literals or names will be scanned for, delimited by periods. The first name will be used to index the macros table, the result of which should be a function, built in macro, or table to search further into. If a table is found, then another name will be scanned for and this process repeats but with the previously found table. Scanning will stop when the final string literal or name is found that finds the function or built in macro to call. While scanning, macro expansions will be done, for example: `$$lua("lua")()` is valid.
 
-Once the built in macro or function is found to call, it will be invoked with a reference to the preprocessor state and the number of tables searched through (other than the macros table) to find the macro to invoke. Functions are provided in the reference to the preprocessor state that allow manipulating the tokens, getting the macros table, setting the macros table to a new table, and setting error information. Tokens prior to the `$` are not visible, and cannot be changed nor viewed. A reference to a preprocessor state should only be used when macro expansion with a function is occuring, unless otherwise specified.
+Once the built in macro or function is found to call, it will be invoked with a reference to the preprocessor state and the number of tables searched through (other than the macros table) to find the macro to invoke. Functions are provided the reference to the preprocessor state that allows manipulating the tokens, getting the macros table, setting the macros table to a new table, and setting error information. Tokens prior to the `$` are not visible, and cannot be changed nor viewed. A reference to a preprocessor state should only be used when macro expansion with a function is occuring, unless otherwise specified (e.g. you cannot interact with the preprocessor state while a macro is being searched inside of __index).
 
 When the function returns, the visible tokens are the result of macro expansion. Generally, a macro should only try to view and manipulate tokens in a defined region, such as in a set of brackets rather than work with all visible tokens.
 
@@ -51,7 +51,7 @@ Explanations and examples of the built in macros:
 ```lua
 $none -- Expands to nothing
 ```
-* `lua`: Evaluates an expression or statements enclosed with brackets after the name `lua`. A reference to the preprocessor state is provided in the `...` arguments. References to the preprocessor state can be used, and only the tokens after the closing bracket are visible. The `$`, the name `lua`, and the expression or statements are replaced by the return value. The return value should be:
+* `lua`: Evaluates an expression or statements enclosed with brackets after the name `lua`. A reference to the preprocessor state is provided in the `...` arguments. References to the preprocessor state can be used, and only the tokens after the closing bracket are visible. The `$`, the name `lua`, and the expression or statements enclosed with brackets are replaced by the return value. The return value should be:
     * nil, the value nil is the result.
     * A boolean, false or true is the result.
     * A number, this number is the result and must not be NaN. If the number is a negative floating point number, it will be replaced by four tokens `(-N)` where N is the number.
@@ -88,10 +88,39 @@ $defined x.y -- true
 $defined x.z -- false
 $defined random.y -- false.y, note that it stops scanning at 'random' so it never removes the .y
 ```
-* `if`: TODO
-* `concat`: TODO
-* `tostring`: TODO
-* `totokens`: TODO
+* `if`: Expects an if branch, then zero or more elseif or else branches, and finally a terminating end. The if and elseif branches are followed by a bracketed condition and a bracketed branch, both of which may be prefixed with a `::`. The else branches are followed by a bracketed branch, which may be prefixed with `::`. Branches are evaluated left to right. The first if or elseif branch that has a condition of true or else branch is the selected branch, and will be the branch used for getting the result. When evaluating a condition, if a correct branch hasn't been reached yet then it will expect to find only true or false as names or string literals in the condition. If a correct branch hasn't been reached yet any bracketed sequence of tokens is valid, and `$` without 'not nows' will not be evaluated unless the `::` prefix is used. Bracketed branches other than the selected branch (if any) and without a prefix `::` will be evaluated without evaluating `$` without 'not nows'. The tokens `$`, `end`, and all tokens in between except the tokens inside of the selected bracketed branch (if any) will be removed.
+```lua
+$if(true){1}else{2}end -- 1
+$if(false){1}else{2}end -- 2
+$if(false){3}end -- nothing
+$if(true){}else{$lua(error())}end -- nothing, no error because the second $ is ignored here
+$if(true){}else::{$lua(error())}end -- error, the $ is evaluated anyway because of the ::
+$if(false){}elseif(true){1}elseif($lua(error())){}end -- 1, no error because the $ is ignored here (and :: can be used again to force evaluation)
+-- branches after an else branch are allowed:
+$if(true){}else{}elseif(){}else{}end -- nothing, and the elseif doesn't need anything in the condition when not being checked
+```
+* `concat`: Concatenates one or more strings, or one or more names, terminated by a semicolon. The tokens `$`, `;`, and all tokens in between are replaced by the combined string or name.
+```lua
+$concat a b c; -- abc
+$concat "a" "b" "c"; -- "abc"
+$concat a; -- a
+$concat a "b"; -- error, cannot mix strings and names
+```
+* `tostring`: Converts a bracketed sequence of tokens that will be converted into a string. The specific format shouldn't be relied upon, tokens may have multiple ways of being converted into the string, and the way spaces are inserted shouldn't be relied upon. The tokens `$` and the bracketed sequence of tokens are replaced by the string reperesentation of the tokens.
+```lua
+$tostring(1+2) -- "0X1+0X2"
+$tostring(()) -- "()"
+$tostring() -- ""
+$tostring($concat a b c;) -- "abc"
+$tostring(\$concat a b c;) -- "$concat a b c;"
+```
+* `totokens`: Converts a string to tokens, doing the opposite function of `tostring`. The `$`, `totokens`, and string are replaced by the tokens read from the string.
+```lua
+$totokens"abc" -- abc
+$totokens"(1+2)" -- (1+2)
+$totokens"$lua(1+2)" -- 3, the $ in the resulting tokens gets expanded after totokens finishes
+$totokens$tostring(a b c) -- a b c, tostring and totokens do opposite things
+```
 * `notnow`: TODO
 * `now`: TODO
 
