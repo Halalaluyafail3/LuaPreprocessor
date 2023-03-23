@@ -131,7 +131,7 @@ $notnow;none -- $none, same as \$ here
 $tostring($notnow:]) -- "]", same as \] here, this is interesting if the token used is created from another macro
 $notnow($lua(1+2)) -- $lua(1+2), just a convient way of adding 'not nows' to some tokens
 $notnow::($lua(foo())) -- similar to above, but doing macro expansions so the result depends upon foo
-$tostring($notnow?($totokens"(")) -- a simple way of adding notnows to the results of macro expansion
+$tostring($notnow?($totokens"(")) -- a simple way of adding 'not nows' to the results of macro expansion
 ```
 * `now`: Expects a bracketed sequence of tokens. The symbol `$`, the name `now`, and the beginning and ending bracket will be removed. This macro is intended to do an extra evaluation to remove 'not nows'.
 ```lua
