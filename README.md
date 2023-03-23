@@ -114,7 +114,7 @@ $tostring() -- ""
 $tostring($concat a b c;) -- "abc"
 $tostring(\$concat a b c;) -- "$concat a b c;"
 ```
-* `totokens`: Converts a string to tokens, doing the opposite function of `tostring`. The symbol `$`, the name `totokens`, and string are replaced by the tokens read from the string.
+* `totokens`: Converts a string to tokens, doing the opposite function of `tostring`. The symbol `$`, the name `totokens`, and the string are replaced by the tokens read from the string.
 ```lua
 $totokens"abc" -- abc
 $totokens"(1+2)" -- (1+2)
@@ -124,8 +124,8 @@ $totokens$tostring(a b c) -- a b c, tostring and totokens do opposite things
 * `notnow`: Adds 'not nows' to tokens. The brackets in this description are used to indicate optionality, `[number]` means a number may or may not appear. `number` refers to a nonnegative integer, or a floating pointer number that is exactly representable as a nonnegative integer. This macro is overloaded to do multiple things:
     * `notnow [number] ;`: Adds the specified number of 'not nows' to the symbol `$`, or one if no number is specified. The name `notnow`, the number, and the symbol `;` will be removed.
     * `notnow [number] : symbol`: Adds the specified number of 'not now's to the symbol, or one if no number is specified. The symbol `$`, the name `notnow`, the number, and the symbol `:` will be removed.
-    * `notnow [number] [::] bracketed token sequence`: Adds the specified number of 'not nows' to the symbols in the bracketed token sequence, or one if no number is specified. If the symbol `::` is not specified, any `$` symbols without 'not nows' will not be evaluated after the opening bracket. The symbol `$`, the name `notnow`, the number, the symbol `::`, and beginning and ending brackets will be removed.
-    * `notnow [number] ? [::] bracketed token sequence`: Moves the tokens inside of the bracketed token sequence to the end of the visible tokens. Any `$` symbols without 'not nows' will not be evaluated after the opening bracket if the symbol `::` is not specified. After moving the tokens, it will scan those tokens, then add the specified number of 'not nows' to the symbols, or one if no number is specified. The remaining tokens are placed back, and the symbol `$`, the name `notnow`, the number, the symbol `?`, the symbol `::`, and beginning and ending brackets will be removed.
+    * `notnow [number] [::] bracketed token sequence`: Adds the specified number of 'not nows' to the symbols in the bracketed token sequence, or one if no number is specified. If the symbol `::` is not specified, any `$` symbols without 'not nows' will not be evaluated after the opening bracket. The symbol `$`, the name `notnow`, the number, the symbol `::`, and the beginning and ending brackets will be removed.
+    * `notnow [number] ? [::] bracketed token sequence`: Moves the tokens inside of the bracketed token sequence to the end of the visible tokens. Any `$` symbols without 'not nows' will not be evaluated after the opening bracket if the symbol `::` is not specified. After moving the tokens, it will scan those tokens, then add the specified number of 'not nows' to the symbols, or one if no number is specified. The remaining tokens are placed back, and the symbol `$`, the name `notnow`, the number, the symbol `?`, the symbol `::`, and the beginning and ending brackets will be removed.
 ```lua
 $notnow;none -- $none, same as \$ here
 $tostring($notnow:]) -- "]", same as \] here, this is interesting if the token used is created from another macro
@@ -133,7 +133,7 @@ $notnow($lua(1+2)) -- $lua(1+2), just a convient way of adding 'not nows' to som
 $notnow::($lua(foo())) -- similar to above, but doing macro expansions so the result depends upon foo
 $tostring($notnow?($totokens"(")) -- a simple way of adding notnows to the results of macro expansion
 ```
-* `now`: Expects a bracketed sequence of tokens. The symbol `$`, the name `now`, the beginning, and the ending bracket will be removed. This macro is intended to do an extra evaluation to remove 'not nows'.
+* `now`: Expects a bracketed sequence of tokens. The symbol `$`, the name `now`, and the beginning and ending bracket will be removed. This macro is intended to do an extra evaluation to remove 'not nows'.
 ```lua
 $now(\$)none -- nothing
 $now(\$lua(1)) -- 1
