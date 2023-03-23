@@ -51,7 +51,7 @@ Explanations and examples of the built in macros:
 ```lua
 $none -- Expands to nothing
 ```
-* `lua`: Evaluates an expression or statements enclosed with brackets after the name `lua`. A reference to the preprocessor state is provided in the `...` arguments. References to the preprocessor state can be used, and only the tokens after the closing bracket are visible. The `$`, the name `lua`, and the expression or statements enclosed with brackets are replaced by the return value. The return value should be:
+* `lua`: Evaluates an expression or statements enclosed with brackets after the name `lua`. A reference to the preprocessor state is provided in the `...` arguments. References to the preprocessor state can be used, and only the tokens after the closing bracket are visible. The symbol `$`, the name `lua`, and the expression or statements enclosed with brackets are replaced by the return value. The return value should be:
     * nil, the value nil is the result.
     * A boolean, false or true is the result.
     * A number, this number is the result and must not be NaN. If the number is a negative floating point number, it will be replaced by four tokens `(-N)` where N is the number.
@@ -76,7 +76,7 @@ $lua(
 $lua(foo(x)) -- 2, uses globals defined before
 -- this is by far the most powerful built in macro
 ```
-* `defined`: Expects one or more strings or names separated by periods after the name `defined`, searching just like it was trying to invoke the macro using the path. The `$`, the name `defined`, and the path will be replaced by `true` if a function or built in macro located correctly was found, or `false` otherwise.
+* `defined`: Expects one or more strings or names separated by periods after the name `defined`, searching just like it was trying to invoke the macro using the path. The symbol `$`, the name `defined`, and the path will be replaced by `true` if a function or built in macro located correctly was found, or `false` otherwise.
 ```lua
 $defined defined -- true
 $lua(
@@ -88,7 +88,7 @@ $defined x.y -- true
 $defined x.z -- false
 $defined random.y -- false.y, note that it stops scanning at 'random' so it never removes the .y
 ```
-* `if`: Expects an if branch, then zero or more elseif or else branches, and finally a terminating end. The if and elseif branches are followed by a bracketed condition and a bracketed branch, both of which may be prefixed with a `::`. The else branches are followed by a bracketed branch, which may be prefixed with `::`. Branches are evaluated left to right. The first if or elseif branch that has a condition of true or else branch is the selected branch, and will be the branch used for getting the result. When evaluating a condition, if a correct branch hasn't been reached yet then it will expect to find only true or false as names or string literals in the condition. If a correct branch has been reached then any bracketed sequence of tokens is valid, and `$` without 'not nows' will not be evaluated past the opening bracket unless the `::` prefix is used. Bracketed branches other than the selected branch (if any) without a prefix `::` will be evaluated without evaluating `$` without 'not nows' past the opening bracket. The tokens `$`, `end`, and all tokens in between except the tokens inside of the selected bracketed branch (if any) will be removed.
+* `if`: Expects an if branch, then zero or more elseif or else branches, and finally a terminating end. The if and elseif branches are followed by a bracketed condition and a bracketed branch, both of which may be prefixed with a `::` symbol. The else branches are followed by a bracketed branch, which may be prefixed with `::` symbol. Branches are evaluated left to right. The first if or elseif branch that has a condition of true or else branch is the selected branch, and will be the branch used for getting the result. When evaluating a condition, if a correct branch hasn't been reached yet then it will expect to find only true or false as names or string literals in the condition. If a correct branch has been reached then any bracketed sequence of tokens is valid, and any `$` symbols without 'not nows' will not be evaluated past the opening bracket unless the `::` symbol prefix is used. Bracketed branches other than the selected branch (if any) without a symbol prefix `::` will be evaluated without evaluating any `$` symbols without 'not nows' past the opening bracket. The symbol `$`, the name `end`, and all tokens in between except the tokens inside of the selected bracketed branch (if any) will be removed.
 ```lua
 $if(true){1}else{2}end -- 1
 $if(false){1}else{2}end -- 2
@@ -99,14 +99,14 @@ $if(false){}elseif(true){1}elseif($lua(error())){}end -- 1, no error because the
 -- branches after an else branch are allowed:
 $if(true){}else{}elseif(){}else{}end -- nothing, and the elseif doesn't need anything in the condition when not being checked
 ```
-* `concat`: Concatenates one or more strings, or one or more names, terminated by a semicolon. The tokens `$`, `;`, and all tokens in between are replaced by the combined string or name.
+* `concat`: Concatenates one or more strings, or one or more names, terminated by a semicolon. The symbol `$`, the symbol `;`, and all tokens in between are replaced by the combined string or name.
 ```lua
 $concat a b c; -- abc
 $concat "a" "b" "c"; -- "abc"
 $concat a; -- a
 $concat a "b"; -- error, cannot mix strings and names
 ```
-* `tostring`: Converts a bracketed sequence of tokens that will be converted into a string. The specific format shouldn't be relied upon, tokens may have multiple ways of being converted into the string, and the way spaces are inserted shouldn't be relied upon. The tokens `$`, `tostring`, and the bracketed sequence of tokens are replaced by the string reperesentation of the tokens.
+* `tostring`: Converts a bracketed sequence of tokens that will be converted into a string. The specific format shouldn't be relied upon, tokens may have multiple ways of being converted into the string, and the way spaces are inserted shouldn't be relied upon. The symbol `$`, the name `tostring`, and the bracketed sequence of tokens are replaced by the string reperesentation of the tokens.
 ```lua
 $tostring(1+2) -- "0X1+0X2"
 $tostring(()) -- "()"
@@ -114,18 +114,18 @@ $tostring() -- ""
 $tostring($concat a b c;) -- "abc"
 $tostring(\$concat a b c;) -- "$concat a b c;"
 ```
-* `totokens`: Converts a string to tokens, doing the opposite function of `tostring`. The `$`, `totokens`, and string are replaced by the tokens read from the string.
+* `totokens`: Converts a string to tokens, doing the opposite function of `tostring`. The symbol `$`, the name `totokens`, and string are replaced by the tokens read from the string.
 ```lua
 $totokens"abc" -- abc
 $totokens"(1+2)" -- (1+2)
 $totokens"$lua(1+2)" -- 3, the $ in the resulting tokens gets expanded after totokens finishes
 $totokens$tostring(a b c) -- a b c, tostring and totokens do opposite things
 ```
-* `notnow`: Adds 'not nows' to tokens. The brackets in this description are used to indicate optionality, `[number]` means a number may or may not appear. This macro is overloaded to do multiple things:
-    * `notnow [number] ;`: Adds the specified number of 'not nows' to the `$`, or one if no number is specified. The `notnow`, number, and `;` will be removed.
-    * `notnow [number] : symbol`: Adds the specified number of 'not now's to the symbol, or one if no number is specified. The `$`, `notnow`, number, and `:` will be removed.
-    * `notnow [number] [::] bracketed token sequence`: Adds the specified number of 'not nows' to the symbols in the bracketed token sequence, or one if no number is specified. If `::` is not specified, `$` without 'not nows' will not be evaluated after the opening bracket. The `$`, `notnow`, number, `::`, and beginning and ending brackets will be removed.
-    * `notnow [number] ? [::] bracketed token sequence`: Moves the tokens inside of the bracketed token sequence to the end of the visible tokens. `$` without 'not nows' will not be evaluated after the opening bracket if `::` is not specified. After moving the tokens, it will scan those tokens, then add the specified number of 'not nows' to the symbols, or one if no number is specified. The remaining tokens are placed back, and the `$`, `notnow`, number, `?`, `::`, and beginning and ending brackets will be removed.
+* `notnow`: Adds 'not nows' to tokens. The brackets in this description are used to indicate optionality, `[number]` means a number may or may not appear. `number` refers to a nonnegative integer, or a floating pointer number that is exactly representable as a nonnegative integer. This macro is overloaded to do multiple things:
+    * `notnow [number] ;`: Adds the specified number of 'not nows' to the symbol `$`, or one if no number is specified. The name `notnow`, the number, and the symbol `;` will be removed.
+    * `notnow [number] : symbol`: Adds the specified number of 'not now's to the symbol, or one if no number is specified. The symbol `$`, the name `notnow`, the number, and the symbol `:` will be removed.
+    * `notnow [number] [::] bracketed token sequence`: Adds the specified number of 'not nows' to the symbols in the bracketed token sequence, or one if no number is specified. If the symbol `::` is not specified, any `$` symbols without 'not nows' will not be evaluated after the opening bracket. The symbol `$`, the name `notnow`, the number, the symbol `::`, and beginning and ending brackets will be removed.
+    * `notnow [number] ? [::] bracketed token sequence`: Moves the tokens inside of the bracketed token sequence to the end of the visible tokens. Any `$` symbols without 'not nows' will not be evaluated after the opening bracket if the symbol `::` is not specified. After moving the tokens, it will scan those tokens, then add the specified number of 'not nows' to the symbols, or one if no number is specified. The remaining tokens are placed back, and the symbol `$`, the name `notnow`, the number, the symbol `?`, the symbol `::`, and beginning and ending brackets will be removed.
 ```lua
 $notnow;none -- $none, same as \$ here
 $tostring($notnow:]) -- "]", same as \] here, this is interesting if the token used is created from another macro
@@ -133,7 +133,7 @@ $notnow($lua(1+2)) -- $lua(1+2), just a convient way of adding 'not nows' to som
 $notnow::($lua(foo())) -- similar to above, but doing macro expansions so the result depends upon foo
 $tostring($notnow?($totokens"(")) -- a simple way of adding notnows to the results of macro expansion
 ```
-* `now`: Expects a bracketed sequence of tokens, the `$`, `now`, the beginning, and the ending bracket will be removed. This macro is intended to do an extra evaluation to remove not nows.
+* `now`: Expects a bracketed sequence of tokens. The symbol `$`, the name `now`, the beginning, and the ending bracket will be removed. This macro is intended to do an extra evaluation to remove 'not nows'.
 ```lua
 $now(\$)none -- nothing
 $now(\$lua(1)) -- 1
