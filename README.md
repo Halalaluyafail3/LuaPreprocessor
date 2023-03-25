@@ -40,13 +40,13 @@ Each symbol has an associated amount of 'not nows', which indicates that a symbo
 
 Macro expansions are done using a `$` symbol with no 'not nows'. After the `$` symbol, one or more string literals or names will be scanned for, delimited by periods. The first name will be used to index the macros table, the result of which should be a function, built in macro, or table to search further into. If a table is found, then another name will be scanned for and this process repeats but with the previously found table. Scanning will stop when the final string literal or name is found that finds the function or built in macro to call. While scanning, macro expansions will be done, for example: `$$lua("lua")()` is valid.
 
-Once the built in macro or function is found to call, it will be invoked with a reference to the preprocessor state and the number of tables searched through (other than the macros table) to find the macro to invoke. Functions are provided the reference to the preprocessor state that allows manipulating the tokens, getting the macros table, setting the macros table to a new table, and setting error information. Tokens prior to the `$` symbol are not visible, and cannot be changed nor viewed. A reference to a preprocessor state should only be used when macro expansion with a function is occuring, unless otherwise specified (e.g. you cannot interact with the preprocessor state while a macro is being searched inside of __index).
+Once the built in macro or function macro is found to call, it will be invoked with a reference to the preprocessor state and the number of tables searched through (other than the macros table) to find the macro to invoke. Function macros are provided the reference to the preprocessor state that allows manipulating the tokens, getting the macros table, setting the macros table to a new table, and setting error information. Tokens prior to the `$` symbol are not visible, and cannot be changed nor viewed. A reference to a preprocessor state should only be used when macro expansion with a function is occuring, unless otherwise specified (e.g. you cannot interact with the preprocessor state while a macro is being searched inside of __index).
 
-When the function returns, the visible tokens are the result of macro expansion. Generally, a macro should only try to view and manipulate tokens in a defined region, such as in a set of brackets rather than work with all visible tokens.
+When the function macro returns, the visible tokens are the result of macro expansion. Generally, a macro should only try to view and manipulate tokens in a defined region, such as in a set of brackets rather than work with all visible tokens.
 
 Built in macros should only be invoked with their original name, and should only be invoked directly by putting them in the macros table. The default preprocessing state will start with a macros table containg just the built in macros: `now`, `notnow`, `totokens`, `tostring`, `concat`, `if`, `defined`, `lua`, `none`. Here, 'brackets' is used to refer to parentheses, square brackets, or curly brackets. All types of brackets are treated equally, and when counting brackets to find the ending bracket they will be treated equally. Built in macros will scan left to right and do macro expansions, unless stated othwerwise.
 
-Explanations and examples of the built in macros:
+# The built in macros
 * `none`: Removes the symbol `$` and the name `none`.
 ```lua
 $none -- Expands to nothing
@@ -138,6 +138,80 @@ $tostring($notnow?($totokens"(")) -- a simple way of adding 'not nows' to the re
 $now(\$)none -- nothing
 $now(\$lua(1)) -- 1
 ```
+
+# The preprocessor interface
+A preprocessor state is created by the preprocessor, and references to this preprocessor state are provided when invoking macros or through the built in macro `lua`. These references allow manipulating the preprocessor state, methods are provided that will change the preprocessor state or the tokens it contains. The preprocessor state contains a cursor, which is used to identify the current token being viewed. This cursor will be saved when invoking a macro from within a macro. The cursor can be in the invalid state, indicating that no token is being viewed. When a macro is invoked, the cursor will by default be set to the first visible token, or the invalid state if there are no visible tokens.
+
+A global function `tokens` is provided that will create a new preprocessor state, and return a reference to it. The macros table is provided with the first argument. By default, this preprocessor state will contain no tokens. When no macro is being invoked on this preprocessor state, all tokens are visible and the references to the preprocessor state can be used.
+```lua
+-- an example of the tokens function and some of the preprocessor interface
+local x = $lua(
+    local p = ... -- get the reference from the arguments
+    local t = tokens(p:get_macros()) -- create a new tokens list, same macros
+    t:insert_at_start() -- insert a token at the start
+    t:set_type"symbol" -- make it a symbol
+    -- by default, the symbol will be a $
+    t:insert_ahead() -- add another token
+    t:set_type"name" -- make it a name
+    t:set_content"totokens" -- specifically the name 'totokens'
+    t:insert_ahead() -- and another token
+    t:set_type"string" -- that is a string
+    t:set_content"y" -- "y"
+    t:go_to_start() -- now go back to looking at the $
+    t:handle_dollar() -- invoke this macro using all the tokens we have set up
+    p:copy(t) -- we know this string will result in 1 token
+    -- so we can copy over this token after $lua
+) 1
+```
+
+Errors can occur during preprocessing, each preprocessing state can be in an error state. When the preprocessor state enters the error state, a string is stored containing the error information. Information will be added about the currently invoked macros as the error is returning back. The only methods accessible during an error are the functions for getting or setting an error. Errors are not recoverable within a preprocessing state, but can be handled from outside of the preprocessing state. Some possible reasons for an error to occur are: failing to find a built in macro or function to invoke, using a built in macro incorrectly, setting an error with the preprocessor interface, a function macro erroring, or a memory error.
+
+Incorrectly using the preprocessor interface will result in the method to generate an error, but no error will be set on the preprocessor state.
+
+# The methods of the preprocessor interface
+All method names use `snake_case`. When a cursor's token is mentioned the cursor must not be in the invalid state, unless stated otherwise.
+
+`get_content()` and `set_content(content)` will get or set (respectively) the content of the cursor's token. For strings and names, a string with the contents will be used. For integers and floats, integers and floats will be used. For symbols, their string representations will be used.
+
+`get_type()` and `set_type(type)` will get or set (respectively) the type of the cursor's token. The types are: `string`, `name`, `integer`, `float`, and `symbol`. `set_type` will set the content to a default value: the empty string for strings, `nil` for names, zero for integers and floats, and `$` for symbols.
+
+`get_not_now_amount()` and `set_not_now_amount(nonnegative_integer)` will get or set (respectively) the amount of 'not nows' on the cursor's token. The cursor's token must be a symbol.
+
+`is_valid()` will return `false` if the cursor is in the invalid state, and `true` otherwise.
+
+`make_invalid()` will put the cursor in the invalid state.
+
+`is_advancing_valid()` and `is_retreating_valid()` will return `false` if advancing or retreating (respectively) will leave the the cursor in the invalid state, and `true` othwerise. The cursor must not be in the invalid state.
+
+`go_to_start()` and `go_to_end()` will go the the start or end (respectively), or end up in the invalid state if there are no visible tokens.
+
+`advance()` and `reatreat()` will advance or retreat (respectively), or end up in the invalid state if there are no visible tokens after or before (respectively) the cursor's token.
+
+`remove_and_advance()` and `remove_and_retreat()` will remove the cursor's token and advance or retreat (respectively), or end up in the invalid state if there are no visible tokens after or before (respectively) the cursor's token.
+
+`insert_at_start()` and `insert_at_end()` will insert a new token at the start or end (respectively), and set the cursor to point at the new token. The token will start as an integer with the value zero.
+
+`insert_ahead()` and `insert_behind()` will insert a new token ahead or behind (respectively) of the cursor's token, and set the cursor to point at the new token. The token will start as an integer with the value zero.
+
+`insert_at_start_and_stay()`, `insert_at_end_and_stay()`, `insert_ahead_and_stay()`, and `insert_behind_and_stay()` are the same as the methods without the `_and_stay` suffix, but the cursor will not change.
+
+`steal_to_start_and_advance()`, `steal_to_end_and_advance()`, `steal_ahead_and_advance()`, `steal_behind_and_advance()`, `steal_to_start_and_retreat()`, `steal_to_end_and_retreat()`, `steal_ahead_and_retreat()`, and `steal_behind_and_retreat()`: TODO
+
+`handle_dollar()` will do a macro expansion. The cursor's token must be a `$` symbol without any 'not nows'. The cursor will point at the first token of the macro expansion, or will be set in the invalid state if the macro expansion is empty.
+
+`handle_dollar_and_not_nows()` will do macro expansion like `handle_dollar()` zero or more times until the cursor's token is not a `$` symbol without any 'not nows'. The cursor will point at the first token of the last macro expansion, or will be set to the invalid state if the macro expansion was empty. If the last macro expansion was not empty and the first token of the macro expansion is a symbol with one or more 'not nows', one 'not now' will be removed and `true` will be returned. In all other cases, `false` will be returned.
+
+`copy(other_preprocessing_state)` will copy the type, contents, and 'not nows' (for symbols) of the provided preprocessing state's cursor's token into the cursor's token (of the preprocessing state which the method was used on). The other preprocessing state should be in a state where the preprocessing interface can be used with it.
+
+`shift_to_start()`, `shift_to_start_and_advance()`, `shift_to_start_and_retreat()`, `shift_to_end()`, `shift_to_end_and_advance()`, `shift_to_end_and_retreat()`, `swap_with_start()`, `swap_with_end()`, `swap_ahead()`, `swap_behind()`, and `swap_between()`: TODO
+
+`get_macros()` and `set_macros(table)` will get or set (respectively) the macros table.
+
+`get_error()` will get the current error message contained in the preprocessing state, or `nil` if no error exists. This method can always be used, even when the rest of the macro API cannot.
+
+`set_error(string)` will set the error message contained in the preprocessing state. This function will not raise an error in the calling Lua code assuming no memory errors occur, if this type of quick exiting is desired then an error should be created explicitly.
+
+`clear()` will remove every visible token, and set the cursor in the invalid state.
 
 # Examples
 ```lua
