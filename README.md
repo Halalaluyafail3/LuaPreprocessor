@@ -185,7 +185,7 @@ All method names use `snake_case`. When a cursor's token is mentioned the cursor
 
 `go_to_start()` and `go_to_end()` will go the the start or end (respectively), or end up in the invalid state if there are no visible tokens.
 
-`advance()` and `reatreat()` will advance or retreat (respectively), or end up in the invalid state if there are no visible tokens after or before (respectively) the cursor's token.
+`advance()` and `retreat()` will advance or retreat (respectively), or end up in the invalid state if there are no visible tokens after or before (respectively) the cursor's token.
 
 `remove_and_advance()` and `remove_and_retreat()` will remove the cursor's token and advance or retreat (respectively), or end up in the invalid state if there are no visible tokens after or before (respectively) the cursor's token.
 
