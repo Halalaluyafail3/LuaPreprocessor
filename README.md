@@ -24,6 +24,18 @@ Input is specified by a file name, stdin with `-`, or as a program argument with
 
 Example: `./Preprocessor foo.lua out.lua` reads from `foo.lua` and writes to `out.lua`
 
+# Examples
+```lua
+local hpi = $lua(math.pi/2) -- sets hpi to half of pi, this division will happen at compile time
+local letters = {$lua(
+    local result = {}
+    for byte=string.byte"A",string.byte"Z" do -- assuming ASCII
+        table.insert(result,string.char(byte).."=0,")
+    end
+    return result
+)} -- creates a table with each uppercase letter initialized with the value zero
+```
+
 # What the preprocessor does
 The preprocessor fundementally performs token manipulation: a sequence of tokens comes in, and a sequence of tokens is outputted. Here, a token refers to a lexical element such as a string literal or name. The supported syntax for tokens in the preprocessor is equivalent to Lua with a few additions:
 * String literals may contain unescaped end of line sequences, they will be interpreted as if they were escaped.
@@ -216,8 +228,3 @@ All method names use `snake_case`. When a cursor's token is mentioned the cursor
 `set_error(string)` will set the error message contained in the preprocessing state. This function will not raise an error in the calling Lua code assuming no memory errors occur, if this type of quick exiting is desired then an error should be created explicitly.
 
 `clear()` will remove every visible token, and set the cursor in the invalid state.
-
-# Examples
-```lua
-local hpi = $lua(math.pi/2) -- sets hpi to half of pi, this division is guaranteed to happen at compile time
-```
