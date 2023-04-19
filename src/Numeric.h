@@ -1,9 +1,6 @@
 #ifndef NUMERIC_H
 	#define NUMERIC_H
-	#include<time.h>
-	#include<stdio.h>
-	#include<stdarg.h>
-	#include<stdint.h>
+	#include<stddef.h>
 	#include<stdbool.h>
 	#include"lua-5.4.4/src/lua.h"
 	#include"lua-5.4.4/src/lauxlib.h"
