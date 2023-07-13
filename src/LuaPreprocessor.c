@@ -5138,6 +5138,7 @@ static int LuaMain(lua_State*L){
 	return 1;
 }
 static bool PrintTokens(Token*Printing,FILE*Output){
+	Token*FirstPrinting=Printing;
 	for(Token*Previous=Printing->Previous;;){
 		#define PUT_CHARACTER(...)\
 			if(fputc(__VA_ARGS__,Output)==EOF&&ferror(Output)){\
@@ -5242,7 +5243,7 @@ static bool PrintTokens(Token*Printing,FILE*Output){
 			}
 			#undef PRINT_STRING
 			case TOKEN_INVALID:{
-				if(fputc('\n',Output)==EOF&&ferror(Output)){
+				if(Printing!=FirstPrinting&&fputc('\n',Output)==EOF&&ferror(Output)){
 					perror("Error writing to output");
 					return 0;
 				}
@@ -5530,49 +5531,47 @@ int main(int ArgumentsLength,char**Arguments){
 	if(List.First){
 		(State->Start.Next=List.First)->Previous=&State->Start;
 		(State->End.Previous=List.Last)->Next=&State->End;
-		List.First=HandleDollars(List.First,State,L);
-		if(State->Error.Message){
-			fputs("Error during evaluation:\n",stderr);
-			fwrite(State->Error.Message,1,State->Error.Length,stderr);
-			fputc('\n',stderr);
+	}
+	Token*Printing=HandleDollars(State->Start.Next,State,L);
+	if(State->Error.Message){
+		fputs("Error during evaluation:\n",stderr);
+		fwrite(State->Error.Message,1,State->Error.Length,stderr);
+		fputc('\n',stderr);
+		lua_close(L);
+		return EXIT_FAILURE;
+	}
+	if(Output){
+		FILE*File=fopen(Output,"w");
+		if(!File){
+			perror("Error opening output file");
 			lua_close(L);
 			return EXIT_FAILURE;
 		}
-		if(List.First){
-			if(Output){
-				FILE*File=fopen(Output,"w");
-				if(!File){
-					perror("Error opening output file");
-					lua_close(L);
-					return EXIT_FAILURE;
-				}
-				if(!PrintTokens(List.First,File)){
-					if(fclose(File)){
-						perror("Error closing output file");
-						lua_close(L);
-						return EXIT_FAILURE;
-					}
-					if(remove(Output)){
-						perror("Error removing output file");
-						lua_close(L);
-						return EXIT_FAILURE;
-					}
-					fputs("Output file successfully removed\n",stderr);
-					lua_close(L);
-					return EXIT_FAILURE;
-				}
-				if(fclose(File)){
-					perror("Error closing output file");
-					lua_close(L);
-					return EXIT_FAILURE;
-				}
-			}else{
-				clearerr(stdout);
-				if(!PrintTokens(List.First,stdout)){
-					lua_close(L);
-					return EXIT_FAILURE;
-				}
+		if(!PrintTokens(Printing,File)){
+			if(fclose(File)){
+				perror("Error closing output file");
+				lua_close(L);
+				return EXIT_FAILURE;
 			}
+			if(remove(Output)){
+				perror("Error removing output file");
+				lua_close(L);
+				return EXIT_FAILURE;
+			}
+			fputs("Output file successfully removed\n",stderr);
+			lua_close(L);
+			return EXIT_FAILURE;
+		}
+		if(fclose(File)){
+			perror("Error closing output file");
+			lua_close(L);
+			return EXIT_FAILURE;
+		}
+	}else{
+		clearerr(stdout);
+		if(!PrintTokens(Printing,stdout)){
+			lua_close(L);
+			return EXIT_FAILURE;
 		}
 	}
 	lua_close(L);
