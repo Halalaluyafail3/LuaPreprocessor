@@ -208,8 +208,8 @@ bool IsSpace(char Character){
 		freelocale(Locale)
 #elif defined _ENABLE_PER_THREAD_LOCALE
 	#define BEFORE_CALL(Name)\
-		int PerThread=_configthreadlocale(0);\
-		if(PerThread==-1||_configthreadlocale(_ENABLE_PER_THREAD_LOCALE)==-1){\
+		int PerThread=_configthreadlocale(_ENABLE_PER_THREAD_LOCALE);\
+		if(PerThread==-1){\
 			LOCALE_FAIL(Name);\
 		}\
 		const char*Locale=setlocale(LC_ALL,0);\
