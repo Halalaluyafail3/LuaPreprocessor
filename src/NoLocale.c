@@ -185,81 +185,232 @@ bool IsSpace(char Character){
 	return(unsigned)(Character==' ')|(unsigned)Character-'\t'<5;
 }
 #define LOCALE_FAIL(Name)\
-	fputs("Error setting locale information in the "#Name" function\n",stderr);\
+	fputs("Error setting locale information in the C"#Name" function\n",stderr);\
 	abort()
 #ifdef LC_ALL_MASK
-	#define BEFORE_CALL(Name)\
-		locale_t Locale=newlocale(LC_ALL_MASK,"C",0);\
-		if(!Locale){\
-			LOCALE_FAIL(Name);\
-		}\
-		locale_t Saved=uselocale(Locale);\
-		if(!Saved){\
-			freelocale(Locale);\
-			LOCALE_FAIL(Name);\
-		}
-	#define AFTER_CALL(Name)\
-		if(!(Locale=uselocale(Saved))){\
-			if(Saved!=LC_GLOBAL_LOCALE){\
-				freelocale(Saved);\
+	#define SAVE_LOCALE(Returned,Name,Prototype,Expression)\
+		Returned C##Name Prototype{\
+			locale_t Locale=newlocale(LC_ALL_MASK,"C",0);\
+			if(!Locale){\
+				LOCALE_FAIL(Name);\
 			}\
-			LOCALE_FAIL(Name);\
-		}\
-		freelocale(Locale)
-#elif defined _ENABLE_PER_THREAD_LOCALE
-	#define BEFORE_CALL(Name)\
-		int PerThread=_configthreadlocale(_ENABLE_PER_THREAD_LOCALE);\
-		if(PerThread==-1){\
-			LOCALE_FAIL(Name);\
-		}\
-		const char*Locale=setlocale(LC_ALL,0);\
-		size_t Length=strlen(Locale);\
-		char SavedLocale[1024];\
-		if(Length>=sizeof(SavedLocale)){\
-			LOCALE_FAIL(Name);\
-		}\
-		memcpy(SavedLocale,Locale,Length+1);\
-		if(!setlocale(LC_ALL,"C")){\
-			LOCALE_FAIL(Name);\
+			locale_t Saved=uselocale(Locale);\
+			if(!Saved){\
+				freelocale(Locale);\
+				LOCALE_FAIL(Name);\
+			}\
+			Returned Result=Name Expression;\
+			if(!(Locale=uselocale(Saved))){\
+				if(Saved!=LC_GLOBAL_LOCALE){\
+					freelocale(Saved);\
+				}\
+				LOCALE_FAIL(Name);\
+			}\
+			freelocale(Locale);\
+			return Result;\
 		}
-	#define AFTER_CALL(Name)\
-		if(!setlocale(LC_ALL,SavedLocale)||_configthreadlocale(PerThread)==-1){\
-			LOCALE_FAIL(Name);\
+	#define SAVE_LOCALE_VARIADIC(Returned,Name,Prototype,Last,Expression)\
+		Returned C##Name Prototype{\
+			locale_t Locale=newlocale(LC_ALL_MASK,"C",0);\
+			if(!Locale){\
+				LOCALE_FAIL(Name);\
+			}\
+			locale_t Saved=uselocale(Locale);\
+			if(!Saved){\
+				freelocale(Locale);\
+				LOCALE_FAIL(Name);\
+			}\
+			va_list Arguments;\
+			va_start(Arguments,Last);\
+			Returned Result=v##Name Expression;\
+			va_end(Arguments);\
+			if(!(Locale=uselocale(Saved))){\
+				if(Saved!=LC_GLOBAL_LOCALE){\
+					freelocale(Saved);\
+				}\
+				LOCALE_FAIL(Name);\
+			}\
+			freelocale(Locale);\
+			return Result;\
+		}
+#elif defined _ENABLE_PER_THREAD_LOCALE
+	#define SAVE_LOCALE(Returned,Name,Prototype,Expression)\
+		Returned C##Name Prototype{\
+			int PerThread=_configthreadlocale(_ENABLE_PER_THREAD_LOCALE);\
+			if(PerThread==-1){\
+				LOCALE_FAIL(Name);\
+			}\
+			if(PerThread==_DISABLE_PER_THREAD_LOCALE){\
+				if(!setlocale(LC_ALL,"C")){\
+					LOCALE_FAIL(Name);\
+				}\
+				Returned Result=Name Expression;\
+				if(_configthreadlocale(_DISABLE_PER_THREAD_LOCALE)==-1){\
+					LOCALE_FAIL(Name);\
+				}\
+				return Result;\
+			}\
+			const char*Locale=setlocale(LC_ALL,0);\
+			size_t Length=strlen(Locale)+1;\
+			if(Length>1024){\
+				char*SavedLocale=malloc(Length);\
+				if(!SavedLocale){\
+					LOCALE_FAIL(Name);\
+				}\
+				memcpy(SavedLocale,Locale,Length);\
+				if(!setlocale(LC_ALL,"C")){\
+					free(SavedLocale);\
+					LOCALE_FAIL(Name);\
+				}\
+				Returned Result=Name Expression;\
+				if(!setlocale(LC_ALL,SavedLocale)){\
+					free(SavedLocale);\
+					LOCALE_FAIL(Name);\
+				}\
+				free(SavedLocale);\
+				return Result;\
+			}\
+			char SavedLocale[1024];\
+			memcpy(SavedLocale,Locale,Length);\
+			if(!setlocale(LC_ALL,"C")){\
+				LOCALE_FAIL(Name);\
+			}\
+			Returned Result=Name Expression;\
+			if(!setlocale(LC_ALL,SavedLocale)){\
+				LOCALE_FAIL(Name);\
+			}\
+			return Result;\
+		}
+	#define SAVE_LOCALE_VARIADIC(Returned,Name,Prototype,Last,Expression)\
+		Returned C##Name Prototype{\
+			int PerThread=_configthreadlocale(_ENABLE_PER_THREAD_LOCALE);\
+			if(PerThread==-1){\
+				LOCALE_FAIL(Name);\
+			}\
+			if(PerThread==_DISABLE_PER_THREAD_LOCALE){\
+				if(!setlocale(LC_ALL,"C")){\
+					LOCALE_FAIL(Name);\
+				}\
+				va_list Arguments;\
+				va_start(Arguments,Last);\
+				Returned Result=v##Name Expression;\
+				va_end(Arguments);\
+				if(_configthreadlocale(_DISABLE_PER_THREAD_LOCALE)==-1){\
+					LOCALE_FAIL(Name);\
+				}\
+				return Result;\
+			}\
+			const char*Locale=setlocale(LC_ALL,0);\
+			size_t Length=strlen(Locale)+1;\
+			if(Length>1024){\
+				char*SavedLocale=malloc(Length);\
+				if(!SavedLocale){\
+					LOCALE_FAIL(Name);\
+				}\
+				memcpy(SavedLocale,Locale,Length);\
+				if(!setlocale(LC_ALL,"C")){\
+					free(SavedLocale);\
+					LOCALE_FAIL(Name);\
+				}\
+				va_list Arguments;\
+				va_start(Arguments,Last);\
+				Returned Result=v##Name Expression;\
+				va_end(Arguments);\
+				if(!setlocale(LC_ALL,SavedLocale)){\
+					free(SavedLocale);\
+					LOCALE_FAIL(Name);\
+				}\
+				free(SavedLocale);\
+				return Result;\
+			}\
+			char SavedLocale[1024];\
+			memcpy(SavedLocale,Locale,Length);\
+			if(!setlocale(LC_ALL,"C")){\
+				LOCALE_FAIL(Name);\
+			}\
+			va_list Arguments;\
+			va_start(Arguments,Last);\
+			Returned Result=v##Name Expression;\
+			va_end(Arguments);\
+			if(!setlocale(LC_ALL,SavedLocale)){\
+				LOCALE_FAIL(Name);\
+			}\
+			return Result;\
 		}
 #else
-	#define BEFORE_CALL(Name)\
-		const char*Locale=setlocale(LC_ALL,0);\
-		size_t Length=strlen(Locale);\
-		char SavedLocale[1024];\
-		if(Length>=sizeof(SavedLocale)){\
-			LOCALE_FAIL(Name);\
-		}\
-		memcpy(SavedLocale,Locale,Length+1);\
-		if(!setlocale(LC_ALL,"C")){\
-			LOCALE_FAIL(Name);\
+	#define SAVE_LOCALE(Returned,Name,Prototype,Expression)\
+		Returned C##Name Prototype{\
+			const char*Locale=setlocale(LC_ALL,0);\
+			size_t Length=strlen(Locale)+1;\
+			if(Length>1024){\
+				char*SavedLocale=malloc(Length);\
+				if(!SavedLocale){\
+					LOCALE_FAIL(Name);\
+				}\
+				memcpy(SavedLocale,Locale,Length);\
+				if(!setlocale(LC_ALL,"C")){\
+					free(SavedLocale);\
+					LOCALE_FAIL(Name);\
+				}\
+				Returned Result=Name Expression;\
+				if(!setlocale(LC_ALL,SavedLocale)){\
+					free(SavedLocale);\
+					LOCALE_FAIL(Name);\
+				}\
+				free(SavedLocale);\
+				return Result;\
+			}\
+			char SavedLocale[1024];\
+			memcpy(SavedLocale,Locale,Length);\
+			if(!setlocale(LC_ALL,"C")){\
+				LOCALE_FAIL(Name);\
+			}\
+			Returned Result=Name Expression;\
+			if(!setlocale(LC_ALL,SavedLocale)){\
+				LOCALE_FAIL(Name);\
+			}\
+			return Result;\
 		}
-	#define AFTER_CALL(Name)\
-		if(!setlocale(LC_ALL,SavedLocale)){\
-			LOCALE_FAIL(Name);\
+	#define SAVE_LOCALE_VARIADIC(Returned,Name,Prototype,Last,Expression)\
+		Returned C##Name Prototype{\
+			const char*Locale=setlocale(LC_ALL,0);\
+			size_t Length=strlen(Locale)+1;\
+			if(Length>1024){\
+				char*SavedLocale=malloc(Length);\
+				if(!SavedLocale){\
+					LOCALE_FAIL(Name);\
+				}\
+				memcpy(SavedLocale,Locale,Length);\
+				if(!setlocale(LC_ALL,"C")){\
+					free(SavedLocale);\
+					LOCALE_FAIL(Name);\
+				}\
+				va_list Arguments;\
+				va_start(Arguments,Last);\
+				Returned Result=v##Name Expression;\
+				va_end(Arguments);\
+				if(!setlocale(LC_ALL,SavedLocale)){\
+					free(SavedLocale);\
+					LOCALE_FAIL(Name);\
+				}\
+				free(SavedLocale);\
+				return Result;\
+			}\
+			char SavedLocale[1024];\
+			memcpy(SavedLocale,Locale,Length);\
+			if(!setlocale(LC_ALL,"C")){\
+				LOCALE_FAIL(Name);\
+			}\
+			va_list Arguments;\
+			va_start(Arguments,Last);\
+			Returned Result=v##Name Expression;\
+			va_end(Arguments);\
+			if(!setlocale(LC_ALL,SavedLocale)){\
+				LOCALE_FAIL(Name);\
+			}\
+			return Result;\
 		}
 #endif
-#define SAVE_LOCALE(Returned,Name,Prototype,Expression)\
-	Returned C##Name Prototype{\
-		BEFORE_CALL(C##Name);\
-		Returned Result=Name Expression;\
-		AFTER_CALL(C##Name);\
-		return Result;\
-	}
-#define SAVE_LOCALE_VARIADIC(Returned,Name,Prototype,Last,Expression)\
-	Returned C##Name Prototype{\
-		BEFORE_CALL(C##Name);\
-		va_list Arguments;\
-		va_start(Arguments,Last);\
-		Returned Result=v##Name Expression;\
-		va_end(Arguments);\
-		AFTER_CALL(C##Name);\
-		return Result;\
-	}
 SAVE_LOCALE(size_t,strftime,(char*restrict String,size_t Max,const char*restrict Format,const struct tm*restrict Tm),(String,Max,Format,Tm))
 SAVE_LOCALE(double,atof,(const char*String),(String))
 SAVE_LOCALE(int,atoi,(const char*String),(String))
