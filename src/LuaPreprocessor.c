@@ -15,6 +15,7 @@
 static_assert(_Generic(+(lua_Integer)0,lua_Integer:1,default:0),"Expected Lua integers to not require integer promotions");
 static_assert(_Generic(+(size_t)0,size_t:1,default:0),"Expected size_t to not require integer promotions");
 static_assert((int)UINT_MAX==-1,"Expected conversions to signed integers to wrap");
+static_assert(INT_MIN!=-INT_MAX,"Expected two's complement");
 #if LUA_MAXINTEGER>=SIZE_MAX
 	#define LSIZE_MAX SIZE_MAX
 #else
