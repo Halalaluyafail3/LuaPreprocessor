@@ -5,6 +5,7 @@
 	#include<stdarg.h>
 	#include<stdint.h>
 	#include<stdbool.h>
+	size_t CountFileHeader(const char*,size_t);
 	int CharacterToDigit(char);
 	int CharacterToHexadecimalDigit(char);
 	int CharacterToOctalDigit(char);

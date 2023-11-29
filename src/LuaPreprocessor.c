@@ -5451,7 +5451,8 @@ int main(int ArgumentsLength,char**Arguments){
 		}else if(ferror(Input)){\
 			READ_ERROR(free(Buffer);__VA_ARGS__);\
 		}\
-		List=MakeTokenList(Buffer,Length,&State->Error);\
+		size_t HeaderLength=CountFileHeader(Buffer,Length);\
+		List=MakeTokenList(Buffer+HeaderLength,Length-HeaderLength,&State->Error);\
 		free(Buffer);\
 		__VA_ARGS__
 	char*FirstArgument=Arguments[1];

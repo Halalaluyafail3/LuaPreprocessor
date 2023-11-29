@@ -112,6 +112,12 @@ CHECK_ASCII('|',124);
 CHECK_ASCII('}',125);
 CHECK_ASCII('~',126);
 #undef CHECK_ASCII
+size_t CountFileHeader(const char*Buffer,size_t Length){
+	if(Length<3){
+		return 0;
+	}
+	return((unsigned)((unsigned char)Buffer[0]==239)&(unsigned char)Buffer[1]==187&(unsigned char)Buffer[2]==191)*3;
+}
 int CharacterToDigit(char Character){
 	return(unsigned)Character^'0';
 }
