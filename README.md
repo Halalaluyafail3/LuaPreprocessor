@@ -56,7 +56,7 @@ Once the built in macro or function macro is found to call, it will be invoked w
 
 When the function macro returns, the visible tokens are the result of macro expansion. Generally, a macro should only try to view and manipulate tokens in a defined region, such as in a set of brackets rather than work with all visible tokens.
 
-Built in macros should only be invoked with their original name, and should only be invoked directly by putting them in the macros table. The default preprocessing state will start with a macros table containg just the built in macros: `now`, `notnow`, `totokens`, `tostring`, `concat`, `if`, `defined`, `lua`, `none`. Here, 'brackets' is used to refer to parentheses, square brackets, or curly brackets. All types of brackets are treated equally, and when counting brackets to find the ending bracket they will be treated equally. Built in macros will scan left to right and do macro expansions, unless stated othwerwise.
+Built in macros should only be invoked with their original name, and should only be invoked directly by putting them in the macros table. The default preprocessing state will start with a macros table containg just the built in macros: `now`, `notnow`, `totokens`, `tostring`, `concat`, `if`, `defined`, `lua`, `none`. Here, 'brackets' is used to refer to parentheses, square brackets, or curly brackets. All types of brackets are treated equally, and when counting brackets to find the ending bracket they will be treated equally. Built in macros will scan left to right and do macro expansions, unless stated otherwise.
 
 # The built in macros
 * `none`: Removes the symbol `$` and the name `none`.
@@ -193,7 +193,7 @@ All method names use `snake_case`. When a cursor's token is mentioned the cursor
 
 `make_invalid()` will put the cursor in the invalid state.
 
-`is_advancing_valid()` and `is_retreating_valid()` will return `false` if advancing or retreating (respectively) will leave the the cursor in the invalid state, and `true` othwerise. The cursor must not be in the invalid state.
+`is_advancing_valid()` and `is_retreating_valid()` will return `false` if advancing or retreating (respectively) will leave the the cursor in the invalid state, and `true` otherwise. The cursor must not be in the invalid state.
 
 `go_to_start()` and `go_to_end()` will go the the start or end (respectively), or end up in the invalid state if there are no visible tokens.
 
