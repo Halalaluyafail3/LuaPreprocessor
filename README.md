@@ -187,7 +187,7 @@ All method names use `snake_case`. When a cursor's token is mentioned the cursor
 
 `get_type()` and `set_type(type)` will get or set (respectively) the type of the cursor's token. The types are: `string`, `name`, `integer`, `float`, and `symbol`. `set_type` will set the content to a default value: the empty string for strings, `nil` for names, zero for integers and floats, and `$` for symbols.
 
-`get_not_now_amount()` and `set_not_now_amount(nonnegative_integer)` will get or set (respectively) the amount of 'not nows' on the cursor's token. The cursor's token must be a symbol.
+`get_not_now_amount()` and `set_not_now_amount(nonnegative_integer)` will get or set (respectively) the amount of 'not nows' on the cursor's token. For these functions, a non-symbol is considered to have zero 'not nows' and the amount cannot be changed (only setting to zero is allowed).
 
 `is_valid()` will return `false` if the cursor is in the invalid state, and `true` otherwise.
 
