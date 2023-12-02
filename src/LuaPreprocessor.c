@@ -12,8 +12,8 @@
 #include"Libraries.h"
 #include"lua-5.4.4/src/lua.h"
 #include"lua-5.4.4/src/lauxlib.h"
-static_assert(_Generic(+(lua_Integer)0,lua_Integer:1,default:0),"Expected Lua integers to not require integer promotions");
-static_assert(_Generic(+(size_t)0,size_t:1,default:0),"Expected size_t to not require integer promotions");
+static_assert(LUA_MAXINTEGER>=INT_MAX,"Expected Lua integers to not require integer promotions");
+static_assert(SIZE_MAX>=UINT_MAX,"Expected size_t to not require integer promotions");
 static_assert((int)UINT_MAX==-1,"Expected conversions to signed integers to wrap");
 static_assert(INT_MIN!=-INT_MAX,"Expected two's complement");
 #if LUA_MAXINTEGER>=SIZE_MAX
