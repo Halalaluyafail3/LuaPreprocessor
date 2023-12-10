@@ -2331,7 +2331,7 @@ static Token*PredefinedNow(Token*Dollar,Token*MacroName,PreprocessorState*State,
 				STATIC_ERROR(&State->Error,"The number provided to $now N must be nonnegative");
 				return Dollar;
 			}
-			/* there was originally intent to have a repeated $now similar to $notnow, but no useful semantics could be though of */
+			/* there was originally intent to have a repeated $now similar to $notnow, but no useful semantics could be thought of */
 			STATIC_ERROR(&State->Error,"$now N is unimplemented");
 			return Dollar;
 		}else if(AfterMacroName->Type==TOKEN_FLOAT){
