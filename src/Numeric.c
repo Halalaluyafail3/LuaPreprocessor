@@ -13,6 +13,8 @@ bool FloatFitsInInteger(lua_Number Float){
 	lua_Number Floored=floor(Float);
 	return Float==Floored&&IntegerFloatFitsInInteger(Floored);
 }
+/* returns the amount of characters read, this will be zero in case of failure */
+/* a string like "0E?" will result in 1, as it was able to parse it while ignoring the invalid exponent */
 size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrInteger*restrict Output){
 	if(!Length){
 		return 0;
@@ -74,7 +76,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 			++ExponentIndex;\
 		}\
 		size_t ExponentStart=ExponentIndex;\
-		while(++ExponentIndex!=Length){\
+		while(++ExponentIndex!=Length){/* numbers are read right to left to keep as much precision as possible */\
 			if(!IsDigit(Reading=String[ExponentIndex])&&Reading!='_'){\
 				Length=ExponentIndex;\
 				break;\
@@ -83,12 +85,12 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		Exponent=0;\
 		size_t DigitExponent=0;\
 		do{\
-			if(IsDigit(Reading=String[--ExponentIndex])){\
+			if((Reading=String[--ExponentIndex])!='_'){/* Reading=='0' will use a different exponent to avoid zero*infinity */\
 				Exponent+=CharacterToDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),(lua_Number)DigitExponent++);\
 			}\
 		}while(ExponentIndex!=ExponentStart);\
 		Exponent*=ExponentIsPositive*2-1
-	if(Reading=='0'){
+	if(Reading=='0'){/* a leading zero could either be a decimal number of a prefix number such as 0XF */
 		do{
 			if(++Index==Length){
 				Output->IsInteger=1;
@@ -103,7 +105,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		if(Reading=='.'){
 			goto Dot;
 		}
-		if((Reading=MakeUppercase(Reading))=='E'){
+		if((Reading=MakeUppercase(Reading))=='E'){/* the result is zero, though the exponent still needs to be read */
 			for(;;){
 				if(++Index==Length){
 					Output->IsInteger=1;
@@ -138,7 +140,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				}
 			}
 			Output->IsInteger=0;
-			Output->Float=(IsPositive*2-1)*(lua_Number)0;
+			Output->Float=(IsPositive*2-1)*(lua_Number)0;/* the sign needs to be considered even for zero with floats */
 			for(;;){
 				if(++Index==Length){
 					return Length;
@@ -200,12 +202,12 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 			while((Reading=String[--Index])=='_');\
 			Output->IsInteger=1;\
 			Output->Integer=CharacterTo##Name##Digit(Reading);\
-			for(lua_Unsigned Multiple=1;Index!=Start;){\
+			for(lua_Unsigned Multiple=1;Index!=Start;){/* prefixed numbers wrap around */\
 				if((Reading=String[--Index])!='_'){\
 					Output->Integer+=CharacterTo##Name##Digit(Reading)*(Multiple*=(lua_Unsigned)(Radix));\
 				}\
 			}\
-			Output->Integer*=((lua_Unsigned)IsPositive<<1)-1;\
+			Output->Integer*=((lua_Unsigned)IsPositive<<1)-1;/* unsigned negation to get wrap around */\
 			return Length;\
 			Name##Dot:;\
 			while(++Index!=Length){\
@@ -230,7 +232,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				if(Is##Name##Digit(Reading=String[--Index])){\
 					lua_Number Multiple=pow((lua_Number)((Reading!='0')+1),Exponent+(lua_Number)DigitsAmount++*(RadixLog2));\
 					Output->Float+=Multiple?CharacterTo##Name##Digit(Reading)*Multiple:(lua_Number)CharacterTo##Name##Digit(Reading)/(Radix)*pow((lua_Number)2,Exponent+(lua_Number)DigitsAmount*(RadixLog2));\
-				}\
+				}/* if the result is zero, try again with the exponent increased and the result scaled down in case the result is representable even if the multiple isn't representable */\
 			}while(Index!=Start);\
 			Output->Float*=IsPositive*2-1;\
 			return Length
@@ -295,17 +297,17 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		return Length;
 		Integer:;
 		for(DigitsAmount=1;(Reading=String[--Index])=='_';);
-		if(IsPositive){
+		if(IsPositive){/* decimal numbers will result in floats if not representable in integers, to check this positive and negative numbers need different cases */
 			Output->Integer=CharacterToDigit(Reading);
 			for(size_t Multiple=1;;){
 				if(Index==Start){
 					Output->IsInteger=1;
 					return Length;
 				}
-				if((Reading=String[--Index])=='0'){
+				if((Reading=String[--Index])=='0'){/* if the multiple would overflow, it will only matter if a non-zero digit appears */
 					Multiple=Multiple>LUA_MAXINTEGER/10?LUA_MAXINTEGER:Multiple*10;
 					++DigitsAmount;
-				}else if(IsDigit(Reading)){
+				}else if(Reading!='_'){
 					int Digit=CharacterToDigit(Reading);
 					if(Multiple>LUA_MAXINTEGER/10){
 						Output->Float=Output->Integer+Digit*pow((lua_Number)10,DigitsAmount++);
@@ -326,7 +328,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				}
 			}
 			while(Index!=Start){
-				if(IsDigit(Reading=String[--Index])){
+				if((Reading=String[--Index])!='_'){
 					Output->Float+=CharacterToDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),DigitsAmount++);
 				}
 			}
@@ -340,7 +342,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				if((Reading=String[--Index])=='0'){
 					Multiple=Multiple<LUA_MININTEGER/10?LUA_MININTEGER:Multiple*10;
 					++DigitsAmount;
-				}else if(IsDigit(Reading)){
+				}else if(Reading!='_'){
 					int Digit=CharacterToDigit(Reading);
 					if(Multiple<LUA_MININTEGER/10){
 						Output->Float=Output->Integer-Digit*pow((lua_Number)10,DigitsAmount++);
@@ -361,7 +363,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				}
 			}
 			while(Index!=Start){
-				if(IsDigit(Reading=String[--Index])){
+				if((Reading=String[--Index])!='_'){
 					Output->Float-=CharacterToDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),DigitsAmount++);
 				}
 			}
@@ -369,7 +371,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		Output->IsInteger=0;
 		return Length;
 	}
-	if(Reading=='.'){
+	if(Reading=='.'){/* numbers starting with a period must be followed by a digit to avoid ambiguity with names */
 		if((Start=Index+1)==Length||!IsDigit(String[Start])){
 			return 0;
 		}
@@ -396,7 +398,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		Output->IsInteger=0;
 		Output->Float=0;
 		do{
-			if(IsDigit(Reading=String[--Index])){
+			if((Reading=String[--Index])!='_'){
 				lua_Number Multiple=pow((lua_Number)((Reading!='0')*9+1),Exponent-DigitsAmount--);
 				Output->Float+=Multiple?CharacterToDigit(Reading)*Multiple:(lua_Number)CharacterToDigit(Reading)/10*pow((lua_Number)10,Exponent-DigitsAmount);
 			}

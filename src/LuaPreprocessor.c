@@ -12,19 +12,41 @@
 #include"Libraries.h"
 #include"lua-5.4.4/src/lua.h"
 #include"lua-5.4.4/src/lauxlib.h"
+/* assume that lua_Unsigned is the unsigned version of lua_Integer, otherwise the format strings used would be incorrect */
 static_assert(LUA_MAXINTEGER>=INT_MAX,"Expected Lua integers to not require integer promotions");
+/* assume that size_t will not convert to a signed type in arithmetic operations (so bitwise operations are OK) */
 static_assert(SIZE_MAX>=UINT_MAX,"Expected size_t to not require integer promotions");
+/* assume conversion from unsigned to signed is the reverse of signed to unsigned, this isn't strictly guaranteed by the standard */
 static_assert((int)UINT_MAX==-1,"Expected conversions to signed integers to wrap");
+/* assume two's complement for the same reason as above */
 static_assert(INT_MIN!=-INT_MAX,"Expected two's complement");
+/* LSIZE_MAX macro is used so that the sizes of strings aren't too large for Lua, any string passed to Lua shall be no larger than this macro */
 #if LUA_MAXINTEGER>=SIZE_MAX
 	#define LSIZE_MAX SIZE_MAX
 #else
 	#define LSIZE_MAX ((size_t)LUA_MAXINTEGER)
 #endif
-/* size of buffers for writing numbers into strings (including nul char and a leading space) */
+/* size of buffers for writing numbers into strings using the hex format (including nul char and a leading space) */
+/* includes padding bits but that is acceptable */
 #define INTEGER_BUFFER_SIZE (sizeof(lua_Unsigned)>SIZE_MAX/CHAR_BIT?SIZE_MAX:sizeof(lua_Unsigned)*CHAR_BIT/4+4+!!(sizeof(lua_Unsigned)*CHAR_BIT%4))
-#define MAX_EXPONENT (-(uintmax_t)l_floatatt(MIN_EXP)+4>UINTMAX_MAX-l_floatatt(MANT_DIG)?UINTMAX_MAX:-(uintmax_t)l_floatatt(MIN_EXP)+4+l_floatatt(MANT_DIG)>(l_floatatt(MAX_EXP)>UINTMAX_MAX-4?UINTMAX_MAX:(uintmax_t)l_floatatt(MAX_EXP)+4)?-(uintmax_t)l_floatatt(MIN_EXP)+4+l_floatatt(MANT_DIG):l_floatatt(MAX_EXP)>UINTMAX_MAX-4?UINTMAX_MAX:(uintmax_t)l_floatatt(MAX_EXP)+4)
-#define FLOAT_BUFFER_SIZE (l_floatatt(MANT_DIG)/4+!!(l_floatatt(MANT_DIG)%4)+10+(MAX_EXPONENT>99)+(MAX_EXPONENT>999)+(MAX_EXPONENT>9999)+(MAX_EXPONENT>99999)+MAX_EXPONENT/1000000)
+/* here it is assumed that MIN_EXP-MANT_DIG is the lowest subnormal exponent */
+#define EXPONENT_MIN_DIRECTION_SUBNORM (-(uintmax_t)l_floatatt(MIN_EXP)>UINTMAX_MAX-l_floatatt(MANT_DIG)?UINTMAX_MAX:-(uintmax_t)l_floatatt(MIN_EXP)+l_floatatt(MANT_DIG))
+/* FLT_RADIX might not be 2, so when converting to powers of two the value should be multiplied by log2(FLT_RADIX), for simplicitly half of FLT_RADIX is used */
+#define HALF_FLT_RADIX (FLT_RADIX/2+FLT_RADIX%2)
+#define EXPONENT_MIN_DIRECTION_BASE2 (EXPONENT_MIN_DIRECTION_SUBNORM>UINTMAX_MAX/HALF_FLT_RADIX?UINTMAX_MAX:EXPONENT_MIN_DIRECTION_SUBNORM*HALF_FLT_RADIX)
+/* an extra 4 is added since the first digit might not be 1 for the smallest number */
+#define EXPONENT_MIN_DIRECTION (EXPONENT_MIN_DIRECTION_BASE2>UINTMAX_MAX-4?UINTMAX_MAX:EXPONENT_MIN_DIRECTION_BASE2+4)
+/* MAX_EXP is actually 1 larger than the maximum exponent which is fine */
+#define EXPONENT_MAX_DIRECTION_BASE2 (l_floatatt(MAX_EXP)>UINTMAX_MAX/HALF_FLT_RADIX?UINTMAX_MAX:(uintmax_t)l_floatatt(MAX_EXP)*HALF_FLT_RADIX)
+/* an extra 4 is added since %A can have the first digit be zero for subnormal numbers */
+#define EXPONENT_MAX_DIRECTION (EXPONENT_MAX_DIRECTION_BASE2>UINTMAX_MAX-4?UINTMAX_MAX:EXPONENT_MAX_DIRECTION_BASE2+4)
+/* should be at least as large as the maximum possible exponent generated from %A */
+#define MAX_EXPONENT (EXPONENT_MIN_DIRECTION>EXPONENT_MAX_DIRECTION?EXPONENT_MIN_DIRECTION:EXPONENT_MAX_DIRECTION)
+/* should be at least as large as the maximum number of binary digits needed to represent the number */
+#define MAX_FLOAT_DIGITS (l_floatatt(MANT_DIG)>UINTMAX_MAX/HALF_FLT_RADIX?UINTMAX_MAX:l_floatatt(MANT_DIG)*HALF_FLT_RADIX)
+/* egregiously large values of MAX_EXPONENT may be overestimated, but that is acceptable */
+#define FLOAT_BUFFER_SIZE (MAX_FLOAT_DIGITS/4+!!(MAX_FLOAT_DIGITS%4)+10+(MAX_EXPONENT>99)+(MAX_EXPONENT>999)+(MAX_EXPONENT>9999)+(MAX_EXPONENT>99999)+MAX_EXPONENT/1000000)
+/* sufficient to hold either an integer or float */
 #define NUMBER_BUFFER_SIZE (INTEGER_BUFFER_SIZE>FLOAT_BUFFER_SIZE?INTEGER_BUFFER_SIZE:FLOAT_BUFFER_SIZE)
 /* these functions exist to be called in protected mode by Lua to handle errors */
 static int LuaPushString(lua_State*L){
@@ -184,7 +206,7 @@ static inline void MemoryError(ErrorMessage*Error){
 	Error->Type=ERROR_MEMORY;
 }
 /*
-the type used to represent the preprocessor, tokens are stored in a list between Start end End
+the type used to represent the preprocessor, tokens are stored in a list between Start and End (Start and End act as sentinel tokens)
 the list must be valid at any time so that the PreprocessorState can be easily freed at any arbitrary time, even in error
 once an error occurs, it should never be removed (never recoverable)
 
@@ -203,9 +225,6 @@ struct TokenList{
 	Token*First;
 	Token*Last;
 };
-static inline bool IsSymbolCloseBracket(Token*Checking){
-	return Checking->Symbol.Type>=SYMBOL_CLOSE_BRACE;
-}
 static inline Token*CreateToken(void){
 	return malloc(sizeof(Token));
 }
@@ -234,12 +253,15 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 	if(!Length){
 		goto Done;
 	}
+	/* normal error during parsing */
 	#define PARSE_FAIL(Message)\
 		STATIC_ERROR(Error,Message);\
 		goto Fail
+	/* error during parsing where it is known there is at least 1 token (and that the last token doesn't need its contents freed) */
 	#define PARSE_FAIL_DIRECT(Message)\
 		STATIC_ERROR(Error,Message);\
 		goto FailDirect
+	/* errror during parsing where it is known there is at least 1 token and the last token needs its contents freed */
 	#define PARSE_FAIL_CONTENTS(Message)\
 		STATIC_ERROR(Error,Message);\
 		goto FailContents
@@ -250,10 +272,10 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 		}\
 		(Result.Last=(Name->Previous=Result.Last)->Next=Name)->Next=0
 	#define CREATE_NON_SYMBOL(Name)\
-		CREATE_NEW_TOKEN(Name);\
 		if(NotNowAmount){\
-			PARSE_FAIL_DIRECT("Only symbols may have notnows");\
-		}
+			PARSE_FAIL("Only symbols may have notnows");\
+		}\
+		CREATE_NEW_TOKEN(Name);
 	#define CREATE_SYMBOL(Name)\
 		CREATE_NEW_TOKEN(Name);\
 		Name->Type=TOKEN_SYMBOL;\
@@ -495,6 +517,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 				if(++Index==Length){
 					PARSE_FAIL("Unfinished long string");
 				}
+				/* Lua allows for four different end of line sequences: \n, \r, \n\r, and \r\n */
 				if(Buffer[Index]=='\n'?++Index==Length||Buffer[Index]=='\r'&&++Index==Length:Buffer[Index]=='\r'&&(++Index==Length||Buffer[Index]=='\n'&&++Index==Length)){
 					PARSE_FAIL("Unfinished long string");
 				}
@@ -509,7 +532,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 								if(Level==ExitLevel){
 									#define WRITE_CONTENTS(...)\
 										for(size_t BufferIndex=0;BufferIndex!=StringLength;++BufferIndex){\
-											if(Buffer[StringIndex]=='\n'){\
+											if(Buffer[StringIndex]=='\n'){/* any end of line sequence is going to be replaced with a \n */\
 												if(Buffer[++StringIndex]=='\r'){\
 													++StringIndex;\
 												}\
@@ -580,6 +603,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 				if(++Index==Length){
 					PARSE_FAIL("Unfinished short string");
 				}
+				/* preallocation is not done with regular string literals */
 				CREATE_NON_SYMBOL(String);
 				String->Type=TOKEN_SHORT_STRING;
 				String->Short.Length=0;
@@ -595,6 +619,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 					String->Long.Buffer=StringBuffer;\
 					String->Type=TOKEN_LONG_STRING
 				/* unicode encoding up to 6 bytes, as Lua allows */
+				/* the strings will be generated as UTF-8, even in non-ASCII */
 				#define UNICODE_ADD2(Name)\
 					String->Name.Buffer[String->Name.Length++]=0XC0|CodePoint>>6;\
 					String->Name.Buffer[String->Name.Length++]=0X80|CodePoint&0X3F
@@ -948,6 +973,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 	#undef PARSE_FAIL
 	#undef PARSE_FAIL_DIRECT
 	#undef PARSE_FAIL_CONTENTS
+	/* remove the first token that was created at the start of the function */
 	if(!(Result.First=Start.Next)){
 		Result.Last=0;
 	}
@@ -1241,6 +1267,7 @@ static Token*HandleDollar(Token*Dollar,PreprocessorState*State,lua_State*L){
 	State->CursorStart=0;
 	return Previous->Next;
 }
+/* CursorStart left uninitialized */
 static PreprocessorState*PushPreprocessorState(lua_State*L){
 	lua_newuserdatauv(L,sizeof(PreprocessorState),1);
 	lua_rawgetp(L,LUA_REGISTRYINDEX,PreprocessorStateMetatable);
@@ -1252,21 +1279,25 @@ static PreprocessorState*PushPreprocessorState(lua_State*L){
 	State->Error.Type=ERROR_STATIC;
 	return State;
 }
+/* doesn't check if an error is present or if the cursor can be used */
 static PreprocessorState*GetPreprocessorStateRaw(lua_State*L,int Index){
 	if(lua_type(L,Index)!=LUA_TUSERDATA||!lua_getmetatable(L,Index)){
-		luaL_argerror(L,Index,"expected cursor");
+		luaL_argerror(L,Index,"expected preprocessor state");
 	}
 	lua_rawgetp(L,LUA_REGISTRYINDEX,PreprocessorStateMetatable);
 	if(!lua_rawequal(L,-1,-2)){
-		luaL_argerror(L,Index,"expected cursor");
+		luaL_argerror(L,Index,"expected preprocessor state");
 	}
 	lua_pop(L,2);
 	return lua_touserdata(L,Index);
 }
 static PreprocessorState*GetPreprocessorState(lua_State*L,int Index){
 	PreprocessorState*State=GetPreprocessorStateRaw(L,Index);
-	if(State->Error.Message||!State->CursorStart){
-		luaL_argerror(L,Index,"invalid use of cursor");
+	if(State->Error.Message){
+		luaL_argerror(L,Index,"invalid use of preprocessor state (there was a previous error)");
+	}
+	if(!State->CursorStart){
+		luaL_argerror(L,Index,"invalid use of preprocessor state (this preprocessor state cannot be used currently)");
 	}
 	return State;
 }
@@ -1279,7 +1310,7 @@ static int MacroGetContent(lua_State*L){
 			break;
 		}
 		case TOKEN_INVALID:{
-			luaL_argerror(L,1,"invalid use of cursor");
+			luaL_argerror(L,1,"invalid use of cursor (no token to get the contents from)");
 		}
 		case TOKEN_INTEGER:{
 			lua_pushinteger(L,Cursor->Integer);
@@ -1345,19 +1376,19 @@ static int MacroSetContent(lua_State*L){
 			}
 		#define CHECK_NAME\
 			if(!IsAlphabetic(*Buffer)&&*Buffer!='_'){\
-				luaL_argerror(L,2,"invalid name");\
+				luaL_argerror(L,2,"invalid name (the first character must be a letter or an underscore)");\
 			}\
 			for(size_t Index=1;Index!=Length;++Index){\
 				if(!IsAlphanumeric(Buffer[Index])&&Buffer[Index]!='_'){\
-					luaL_argerror(L,2,"invalid name");\
+					luaL_argerror(L,2,"invalid name (all characters must be alphanumeric or an underscore)");\
 				}\
 			}
 		HANDLE_CASES(TOKEN_SHORT_NAME,TOKEN_LONG_NAME,CHECK_NAME);
 		#undef CHECK_NAME
-		HANDLE_CASES(TOKEN_SHORT_STRING,TOKEN_LONG_STRING);
+		HANDLE_CASES(TOKEN_SHORT_STRING,TOKEN_LONG_STRING,);
 		#undef HANDLE_CASES
 		case TOKEN_INVALID:{
-			luaL_argerror(L,1,"invalid use of cursor");
+			luaL_argerror(L,1,"invalid use of cursor (no token to set the contents of)");
 		}
 		case TOKEN_INTEGER:{
 			Cursor->Integer=luaL_checkinteger(L,2);
@@ -1366,11 +1397,11 @@ static int MacroSetContent(lua_State*L){
 		case TOKEN_FLOAT:{
 			lua_Number Float=luaL_checknumber(L,2);
 			if(isnan(Float)){
-				luaL_argerror(L,2,"invalid number");
+				luaL_argerror(L,2,"invalid number (NaN isn't allowed)");
 			}
 			if(signbit(Float)){
 				if(Float){
-					luaL_argerror(L,2,"invalid number");
+					luaL_argerror(L,2,"invalid number (negative floats aren't allowed)");
 				}
 				Cursor->Float=0;
 			}else{
@@ -1469,7 +1500,7 @@ static int MacroGetType(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to get the type of)");
 	}
 	lua_pushlstring(L,TokenNames[Cursor->Type],TokenNameLengths[Cursor->Type]);
 	return 1;
@@ -1478,7 +1509,7 @@ static int MacroSetType(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to set the type of)");
 	}
 	size_t Length;
 	const char*Buffer=luaL_checklstring(L,2,&Length);
@@ -1543,7 +1574,7 @@ static int MacroGetNotNowAmount(lua_State*L){
 	if(Cursor->Type==TOKEN_SYMBOL){
 		lua_pushinteger(L,Cursor->Symbol.NotNowAmount);
 	}else if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to get the notnow amount of)");
 	}else{
 		lua_pushinteger(L,0);
 	}
@@ -1555,11 +1586,11 @@ static int MacroSetNotNowAmount(lua_State*L){
 	if(Cursor->Type==TOKEN_SYMBOL){
 		lua_Integer NotNowAmount=luaL_checkinteger(L,2);
 		if(NotNowAmount<0){
-			luaL_argerror(L,2,"out of bounds");
+			luaL_argerror(L,2,"notnow amount must not be negative");
 		}
 		Cursor->Symbol.NotNowAmount=NotNowAmount;
 	}else if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to set the not notnow amount of)");
 	}else if(luaL_checkinteger(L,2)){
 		luaL_argerror(L,2,"notnow for non-symbol must be zero");
 	}
@@ -1579,7 +1610,7 @@ static int MacroIsAdvancingValid(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to check if advancing beyond is valid)");
 	}
 	lua_pushboolean(L,Cursor->Next->Type);
 	return 1;
@@ -1588,7 +1619,7 @@ static int MacroIsRetreatingValid(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to check if retreating behind is valid)");
 	}
 	lua_pushboolean(L,Cursor->Previous!=State->CursorStart);
 	return 1;
@@ -1608,7 +1639,7 @@ static int MacroAdvance(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to advance beyond)");
 	}
 	State->Cursor=Cursor->Next;
 	return 0;
@@ -1617,7 +1648,7 @@ static int MacroRetreat(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to retreat behind)");
 	}
 	Token*Previous=Cursor->Previous;
 	State->Cursor=Previous!=State->CursorStart?Previous:&State->End;
@@ -1627,7 +1658,7 @@ static int MacroRemoveAndAdvance(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to remove and advance beyond)");
 	}
 	Token*Next=Cursor->Next;
 	Token*Previous=Cursor->Previous;
@@ -1639,7 +1670,7 @@ static int MacroRemoveAndRetreat(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to remove and retreat behind)");
 	}
 	Token*Next=Cursor->Next;
 	Token*Previous=Cursor->Previous;
@@ -1674,7 +1705,7 @@ static int MacroInsertAhead(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to insert ahead of)");
 	}
 	Token*Result=CreateToken();
 	if(!Result){
@@ -1689,7 +1720,7 @@ static int MacroInsertBehind(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to insert behind)");
 	}
 	Token*Result=CreateToken();
 	if(!Result){
@@ -1727,7 +1758,7 @@ static int MacroInsertAheadAndStay(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to insert ahead of)");
 	}
 	Token*Result=CreateToken();
 	if(!Result){
@@ -1742,7 +1773,7 @@ static int MacroInsertBehindAndStay(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to insert behind)");
 	}
 	Token*Result=CreateToken();
 	if(!Result){
@@ -1757,8 +1788,11 @@ static int MacroStealToStartAndAdvance(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	PreprocessorState*Moving=GetPreprocessorState(L,2);
 	Token*Cursor=Moving->Cursor;
-	if(State==Moving||!Cursor->Type){
-		luaL_argerror(L,2,"invalid use of cursor");
+	if(State==Moving){
+		luaL_argerror(L,2,"cannot steal from the same preprocessor state");
+	}
+	if(!Cursor->Type){
+		luaL_argerror(L,2,"invalid use of cursor (no token to steal and advance beyond)");
 	}
 	Token*Previous=State->CursorStart;
 	Token*OldNext=Cursor->Next;
@@ -1770,8 +1804,11 @@ static int MacroStealToEndAndAdvance(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	PreprocessorState*Moving=GetPreprocessorState(L,2);
 	Token*Cursor=Moving->Cursor;
-	if(State==Moving||!Cursor->Type){
-		luaL_argerror(L,2,"invalid use of cursor");
+	if(State==Moving){
+		luaL_argerror(L,2,"cannot steal from the same preprocessor state");
+	}
+	if(!Cursor->Type){
+		luaL_argerror(L,2,"invalid use of cursor (no token to steal and advance beyond)");
 	}
 	Token*OldNext=Cursor->Next;
 	Moving->Cursor=(OldNext->Previous=Cursor->Previous)->Next=OldNext;
@@ -1782,12 +1819,15 @@ static int MacroStealAheadAndAdvance(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	PreprocessorState*Moving=GetPreprocessorState(L,2);
 	Token*Cursor=Moving->Cursor;
-	if(State==Moving||!Cursor->Type){
-		luaL_argerror(L,2,"invalid use of cursor");
+	if(State==Moving){
+		luaL_argerror(L,2,"cannot steal from the same preprocessor state");
+	}
+	if(!Cursor->Type){
+		luaL_argerror(L,2,"invalid use of cursor (no token to steal and advance beyond)");
 	}
 	Token*Previous=State->Cursor;
 	if(!Previous->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to insert stolen token ahead of)");
 	}
 	Token*OldNext=Cursor->Next;
 	Moving->Cursor=(OldNext->Previous=Cursor->Previous)->Next=OldNext;
@@ -1798,12 +1838,15 @@ static int MacroStealBehindAndAdvance(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	PreprocessorState*Moving=GetPreprocessorState(L,2);
 	Token*Cursor=Moving->Cursor;
-	if(State==Moving||!Cursor->Type){
-		luaL_argerror(L,2,"invalid use of cursor");
+	if(State==Moving){
+		luaL_argerror(L,2,"cannot steal from the same preprocessor state");
+	}
+	if(!Cursor->Type){
+		luaL_argerror(L,2,"invalid use of cursor (no token to steal and advance beyond)");
 	}
 	Token*Next=State->Cursor;
 	if(!Next->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to insert stolen token behind)");
 	}
 	Token*OldNext=Cursor->Next;
 	Moving->Cursor=(OldNext->Previous=Cursor->Previous)->Next=OldNext;
@@ -1814,8 +1857,11 @@ static int MacroStealToStartAndRetreat(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	PreprocessorState*Moving=GetPreprocessorState(L,2);
 	Token*Cursor=Moving->Cursor;
-	if(State==Moving||!Cursor->Type){
-		luaL_argerror(L,2,"invalid use of cursor");
+	if(State==Moving){
+		luaL_argerror(L,2,"cannot steal from the same preprocessor state");
+	}
+	if(!Cursor->Type){
+		luaL_argerror(L,2,"invalid use of cursor (no token to steal and retreat behind)");
 	}
 	Token*Previous=State->CursorStart;
 	Token*OldPrevious=Cursor->Previous;
@@ -1827,8 +1873,11 @@ static int MacroStealToEndAndRetreat(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	PreprocessorState*Moving=GetPreprocessorState(L,2);
 	Token*Cursor=Moving->Cursor;
-	if(State==Moving||!Cursor->Type){
-		luaL_argerror(L,2,"invalid use of cursor");
+	if(State==Moving){
+		luaL_argerror(L,2,"cannot steal from the same preprocessor state");
+	}
+	if(!Cursor->Type){
+		luaL_argerror(L,2,"invalid use of cursor (no token to steal and retreat behind)");
 	}
 	Token*OldPrevious=Cursor->Previous;
 	Moving->Cursor=((OldPrevious->Next=Cursor->Next)->Previous=OldPrevious)!=Moving->CursorStart?OldPrevious:&Moving->End;
@@ -1839,12 +1888,15 @@ static int MacroStealAheadAndRetreat(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	PreprocessorState*Moving=GetPreprocessorState(L,2);
 	Token*Cursor=Moving->Cursor;
-	if(State==Moving||!Cursor->Type){
-		luaL_argerror(L,2,"invalid use of cursor");
+	if(State==Moving){
+		luaL_argerror(L,2,"cannot steal from the same preprocessor state");
+	}
+	if(!Cursor->Type){
+		luaL_argerror(L,2,"invalid use of cursor (no token to steal and retreat behind)");
 	}
 	Token*Previous=State->Cursor;
 	if(!Previous->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to insert stolen token ahead of)");
 	}
 	Token*OldPrevious=Cursor->Previous;
 	Moving->Cursor=((OldPrevious->Next=Cursor->Next)->Previous=OldPrevious)!=Moving->CursorStart?OldPrevious:&Moving->End;
@@ -1855,12 +1907,15 @@ static int MacroStealBehindAndRetreat(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	PreprocessorState*Moving=GetPreprocessorState(L,2);
 	Token*Cursor=Moving->Cursor;
-	if(State==Moving||!Cursor->Type){
-		luaL_argerror(L,2,"invalid use of cursor");
+	if(State==Moving){
+		luaL_argerror(L,2,"cannot steal from the same preprocessor state");
+	}
+	if(!Cursor->Type){
+		luaL_argerror(L,2,"invalid use of cursor (no token to steal and retreat behind)");
 	}
 	Token*Next=State->Cursor;
 	if(!Next->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to insert stolen token behind)");
 	}
 	Token*OldPrevious=Cursor->Previous;
 	Moving->Cursor=((OldPrevious->Next=Cursor->Next)->Previous=OldPrevious)!=Moving->CursorStart?OldPrevious:&Moving->End;
@@ -1871,7 +1926,7 @@ static int MacroHandleDollar(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(Cursor->Type!=TOKEN_SYMBOL||Cursor->Symbol.Type!=SYMBOL_DOLLAR||Cursor->Symbol.NotNowAmount){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (only a dollar sign with zero notnows can begin a macro invocation)");
 	}
 	Token*CursorStart=State->CursorStart;
 	State->CursorStart=0;
@@ -1917,7 +1972,7 @@ static int MacroCopy(lua_State*L){
 	}
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to copy to)");
 	}
 	Token*Copying=CopyingState->Cursor;
 	switch(Copying->Type){
@@ -1949,7 +2004,7 @@ static int MacroCopy(lua_State*L){
 			break;
 		}
 		case TOKEN_INVALID:{
-			luaL_argerror(L,2,"invalid use of cursor");
+			luaL_argerror(L,2,"invalid use of cursor (no token to copy from)");
 		}
 		case TOKEN_INTEGER:{
 			FreeContents(Cursor);
@@ -1976,7 +2031,7 @@ static int MacroShiftToStart(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to shift to the start)");
 	}
 	Token*Next=Cursor->Next;
 	(Next->Previous=Cursor->Previous)->Next=Next;
@@ -1988,7 +2043,7 @@ static int MacroShiftToStartAndAdvance(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to shift to the start and advance beyond)");
 	}
 	Token*Next=Cursor->Next;
 	State->Cursor=(Next->Previous=Cursor->Previous)->Next=Next;
@@ -2000,7 +2055,7 @@ static int MacroShiftToStartAndRetreat(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to shift to the start and retreat behind)");
 	}
 	Token*Previous=Cursor->Previous;
 	State->Cursor=((Previous->Next=Cursor->Next)->Previous=Previous)!=State->CursorStart?Previous:&State->End;
@@ -2012,7 +2067,7 @@ static int MacroShiftToEnd(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to shift to the end)");
 	}
 	Token*Next=Cursor->Next;
 	(Next->Previous=Cursor->Previous)->Next=Next;
@@ -2023,7 +2078,7 @@ static int MacroShiftToEndAndAdvance(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to shift to the end and advance beyond)");
 	}
 	Token*Next=Cursor->Next;
 	State->Cursor=(Next->Previous=Cursor->Previous)->Next=Next;
@@ -2034,7 +2089,7 @@ static int MacroShiftToEndAndRetreat(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to shift to the end and retreat behind)");
 	}
 	Token*Previous=Cursor->Previous;
 	State->Cursor=((Previous->Next=Cursor->Next)->Previous=Previous)!=State->CursorStart?Previous:&State->End;
@@ -2045,7 +2100,7 @@ static int MacroSwapWithStart(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to swap with the starting token)");
 	}
 	Token*Previous=State->CursorStart;
 	Token*Swapping=Previous->Next;
@@ -2062,7 +2117,7 @@ static int MacroSwapWithEnd(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to swap with the ending token)");
 	}
 	Token*Swapping=State->End.Previous;
 	Token*Previous=Swapping->Previous;
@@ -2078,11 +2133,11 @@ static int MacroSwapAhead(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to swap with the next token)");
 	}
 	Token*Next=Cursor->Next;
 	if(!Next->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token ahead to swap with)");
 	}
 	(State->Cursor=Cursor->Previous=(Next->Previous=Cursor->Previous)->Next=Next)->Next=(Cursor->Next=Next->Next)->Previous=Cursor;
 	return 0;
@@ -2091,11 +2146,11 @@ static int MacroSwapBehind(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to swap with the previous token)");
 	}
 	Token*Previous=Cursor->Previous;
 	if(Previous==State->CursorStart){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token behind to swap with)");
 	}
 	(State->Cursor=Cursor->Next=(Previous->Next=Cursor->Next)->Previous=Previous)->Previous=(Cursor->Previous=Previous->Previous)->Next=Cursor;
 	return 0;
@@ -2105,11 +2160,11 @@ static int MacroSwapBetween(lua_State*L){
 	PreprocessorState*Swapping=GetPreprocessorState(L,2);
 	Token*Cursor=State->Cursor;
 	if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor");
+		luaL_argerror(L,1,"invalid use of cursor (no token to swap)");
 	}
 	Token*Other=Swapping->Cursor;
 	if(!Other->Type){
-		luaL_argerror(L,2,"invalid use of cursor");
+		luaL_argerror(L,2,"invalid use of cursor (no token to swap)");
 	}
 	Token*Next=Other->Next;
 	Token*Previous=Other->Previous;
@@ -2141,7 +2196,7 @@ static int MacroGetError(lua_State*L){
 static int MacroSetError(lua_State*L){
 	PreprocessorState*State=GetPreprocessorStateRaw(L,1);
 	if(!State->Error.Message&&!State->CursorStart){
-		luaL_error(L,"invalid use of cursor");
+		luaL_error(L,"invalid use of preprocessor state (this preprocessor state cannot be used currently)");
 	}
 	size_t Length;
 	const char*String=luaL_checklstring(L,2,&Length);
@@ -2276,6 +2331,7 @@ static Token*PredefinedNow(Token*Dollar,Token*MacroName,PreprocessorState*State,
 				STATIC_ERROR(&State->Error,"The number provided to $now N must be nonnegative");
 				return Dollar;
 			}
+			/* there was originally intent to have a repeated $now similar to $notnow, but no useful semantics could be though of */
 			STATIC_ERROR(&State->Error,"$now N is unimplemented");
 			return Dollar;
 		}else if(AfterMacroName->Type==TOKEN_FLOAT){
@@ -2296,6 +2352,7 @@ static Token*PredefinedNow(Token*Dollar,Token*MacroName,PreprocessorState*State,
 		}
 	}
 }
+/* lots of duplicated code here */
 static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*State,lua_State*L){
 	for(Token*AfterMacroName=MacroName->Next;;){
 		if(AfterMacroName->Type==TOKEN_SYMBOL){
@@ -3461,7 +3518,7 @@ static Token*PredefinedToString(Token*Dollar,Token*MacroName,PreprocessorState*S
 			case TOKEN_FLOAT:{\
 				bool SkipSpace=Previous->Type!=TOKEN_SHORT_NAME&&Previous->Type!=TOKEN_LONG_NAME&&Previous->Type!=TOKEN_INTEGER&&Previous->Type!=TOKEN_FLOAT&&(Previous->Type!=TOKEN_SYMBOL||Previous->Symbol.Type!=SYMBOL_DOT);\
 				char String[FLOAT_BUFFER_SIZE];\
-				int Length=isfinite(Converting->Float)?Csnprintf(String,sizeof(String)," %"LUA_NUMBER_FRMLEN"A"+SkipSpace,Converting->Float):Csnprintf(String,sizeof(String)," 0X%jXP+%ju"+SkipSpace,(uintmax_t)FLT_RADIX,(uintmax_t)l_floatatt(MAX_EXP));\
+				int Length=isfinite(Converting->Float)?Csnprintf(String,sizeof(String)," %"LUA_NUMBER_FRMLEN"A"+SkipSpace,Converting->Float):Csnprintf(String,sizeof(String)," 0X%jXP+%ju"+SkipSpace,(uintmax_t)FLT_RADIX,EXPONENT_MAX_DIRECTION_BASE2);\
 				if(Length<0||Length>=sizeof(String)){\
 					STATIC_ERROR(&State->Error,"Error while formatting number in $tostring");\
 					return Dollar;\
@@ -4671,7 +4728,7 @@ static const char*LuaReader(lua_State*L,void*VoidReading,size_t*Size){
 				return Reading->Buffer;
 			}
 			case TOKEN_FLOAT:{
-				int Length=isfinite(Reading->Parsing->Float)?Csnprintf(Reading->Buffer,sizeof(Reading->Buffer),"%"LUA_NUMBER_FRMLEN"A",Reading->Parsing->Float):Csnprintf(Reading->Buffer,sizeof(Reading->Buffer),"0X%jXP+%ju",(uintmax_t)FLT_RADIX,(uintmax_t)l_floatatt(MAX_EXP));
+				int Length=isfinite(Reading->Parsing->Float)?Csnprintf(Reading->Buffer,sizeof(Reading->Buffer),"%"LUA_NUMBER_FRMLEN"A",Reading->Parsing->Float):Csnprintf(Reading->Buffer,sizeof(Reading->Buffer),"0X%jXP+%ju",(uintmax_t)FLT_RADIX,EXPONENT_MAX_DIRECTION_BASE2);
 				if(Length<0||Length>=sizeof(Reading->Buffer)){
 					STATIC_ERROR(&Reading->State->Error,"Error while formatting number in $lua");
 					*Size=0;
@@ -4759,7 +4816,7 @@ static Token*PredefinedLua(Token*Dollar,Token*MacroName,PreprocessorState*State,
 	Reading.Parsing=Parsing->Next;
 	Reading.BracketsAmount=0;
 	Reading.Handling=READER_RETURN;
-	Reading.IsExpression=1;
+	Reading.IsExpression=1;/* try parsing as an expression first, if that fails parse as a program */
 	#define DYNAMIC_ERROR(Message_)\
 		if(!State->Error.Message){\
 			if(lua_type(L,-1)==LUA_TSTRING){\
@@ -5026,7 +5083,7 @@ static Token*PredefinedNone(Token*Dollar,Token*MacroName,PreprocessorState*State
 	return(Next->Previous=MacroName)->Next=Next;
 }
 static int LuaInvalidIndex(lua_State*L){
-	return luaL_error(L,"invalid index");
+	return luaL_error(L,"invalid index (incorrect name when indexing a preprocessor state)");
 }
 static int LuaMain(lua_State*L){
 	lua_gc(L,LUA_GCGEN,0,0);
@@ -5222,13 +5279,24 @@ static bool PrintTokens(Token*Printing,FILE*Output){
 							break;\
 						}\
 						default:{\
-							if(IsControl(Printing->Name.Buffer[Index])&&(unsigned char)Printing->Name.Buffer[Index]<=0XFF){\
+							if(!IsControl(Printing->Name.Buffer[Index])){\
+								PUT_CHARACTER(Printing->Name.Buffer[Index]);\
+							}else if((unsigned char)Printing->Name.Buffer[Index]<=0XFF){\
 								PUT_CHARACTER('\\');\
 								PUT_CHARACTER('x');\
 								PUT_CHARACTER(HexadecimalDigitToCharacter((unsigned)(unsigned char)Printing->Name.Buffer[Index]>>4));\
 								PUT_CHARACTER(HexadecimalDigitToCharacter((unsigned char)Printing->Name.Buffer[Index]&0XFU));\
-							}else{\
-								PUT_CHARACTER(Printing->Name.Buffer[Index]);\
+							}else{/* some systems will truncate bytes that don't represent characters */\
+								int Result=fputc(Printing->Name.Buffer[Index],Output);\
+								if(Result==EOF&&ferror(Output)){\
+									perror("Error writing to output");\
+									return 0;\
+								}\
+								if(Result!=(unsigned char)Printing->Name.Buffer[Index]){\
+									fputc('\n',Output);\
+									perror("Invalid character in string literal");\
+									return 0;\
+								}\
 							}\
 						}\
 					}\
@@ -5259,7 +5327,7 @@ static bool PrintTokens(Token*Printing,FILE*Output){
 				if(isfinite(Printing->Float)){
 					PRINT(" %"LUA_NUMBER_FRMLEN"A"+SkipSpace,Printing->Float);
 				}else{
-					PRINT(" 0X%jXP+%ju"+SkipSpace,(uintmax_t)FLT_RADIX,(uintmax_t)l_floatatt(MAX_EXP));
+					PRINT(" 0X%jXP+%ju"+SkipSpace,(uintmax_t)FLT_RADIX,EXPONENT_MAX_DIRECTION_BASE2);
 				}
 				break;
 			}
@@ -5500,7 +5568,7 @@ int main(int ArgumentsLength,char**Arguments){
 			}
 			case 0:{
 				CHECK_ARGUMENTS_AMOUNT(3);
-				READ_FILE(stdin);
+				READ_FILE(stdin,);
 				Output=Arguments[2];
 				break;
 			}

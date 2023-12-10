@@ -225,6 +225,6 @@ All method names use `snake_case`. When a cursor's token is mentioned the cursor
 
 `get_error()` will get the current error message contained in the preprocessing state, or `nil` if no error exists. This method can always be used, even when the rest of the macro API cannot.
 
-`set_error(string)` will set the error message contained in the preprocessing state. This function will not raise an error in the calling Lua code assuming no memory errors occur, if this type of quick exiting is desired then an error should be created explicitly.
+`set_error(string)` will set the error message contained in the preprocessing state. This function will not raise an error in the calling Lua code assuming no memory errors occur (and the reference to the preprocessor state can be used), if this type of quick exiting is desired then an error should be created explicitly.
 
 `clear()` will remove every visible token, and set the cursor in the invalid state.
