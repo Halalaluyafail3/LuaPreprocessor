@@ -8,9 +8,9 @@
 #include<stdbool.h>
 #include<inttypes.h>
 #include"NoLocale.h"
-/* stateless encodings are assumed, in particular each of the characters checked below should always have the same meaning regardless of shift state */
+/* each of the characters checked below should always have the same meaning regardless of shift state and position in a multibyte character */
 /* otherwise the locale would need to be considered and all character comparisons would need to be done with wchar_t */
-/* for example, this won't work with GB18030 encoded files, but will work fine with UTF-8 */
+/* for example, this won't work with GB18030 or ISO2022 encoded files, but will work fine with UTF-8, EUC-JP, or any single byte codepage */
 enum{/* it is intended that non-ASCII is supported, though not efficiently */
 	ASCII_SET=2,
 	NON_ASCII_SET=1,
