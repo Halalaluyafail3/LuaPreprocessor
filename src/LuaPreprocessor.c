@@ -881,6 +881,16 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 				#undef SINGLE_CHARACTER_ESCAPE_SEQUENCE
 				#undef PARSE
 			}
+			case 0:{/* allow any number of trailing null bytes, since binary files can generate this */
+				for(;;){
+					if(++Index==Length){
+						goto Done;
+					}
+					if(Buffer[Index]){
+						PARSE_FAIL("Invalid null byte");
+					}
+				}
+			}
 			default:{
 				if(IsAlphabetic(Buffer[Index])||Buffer[Index]=='_'){
 					size_t NameIndex=Index;
@@ -5442,13 +5452,16 @@ int main(int ArgumentsLength,char**Arguments){
 		fputs(
 			" input [output]\n"
 			"Available input options:\n"
-			"  -e in  use the argument 'in' as input\n"
-			"  -- f   use the file 'f' as input\n"
-			"  -      use the standard input as input\n"
 			"  f      use the file 'f' as input, if it doesn't begin with '-'\n"
+			"  -      use the standard input as input\n"
+			"  -- f   use the file 'f' as input\n"
+			"  -b f   use the file 'f' as input, opened in binary mode\n"
+			"  -e in  use the argument 'in' as input\n"
 			"Available output options:\n"
-			"  f      use the file 'f' as output\n"
-			"         or use the standout output if no output is provided\n",
+			"         use the standout output if nothing is provided\n"
+			"  f      use the file 'f' as output, if it doesn't begin with '-'\n"
+			"  -- f   use the file 'f' as output\n"
+			"  -b f   use the file 'f' as output, opened in binary mode\n",
 			stdout
 		);
 		return EXIT_SUCCESS;
@@ -5465,14 +5478,7 @@ int main(int ArgumentsLength,char**Arguments){
 		return EXIT_FAILURE;
 	}
 	PreprocessorState*State=lua_touserdata(L,1);
-	char*Output;
 	TokenList List;
-	#define CHECK_ARGUMENTS_AMOUNT(Amount)\
-		if(ArgumentsLength>Amount){\
-			fputs("Too many options provided\n",stderr);\
-			lua_close(L);\
-			return EXIT_FAILURE;\
-		}
 	#define READ_ERROR(...)\
 		perror("Error while reading input file");\
 		__VA_ARGS__;\
@@ -5524,10 +5530,11 @@ int main(int ArgumentsLength,char**Arguments){
 		free(Buffer);\
 		__VA_ARGS__
 	char*FirstArgument=Arguments[1];
+	size_t AfterInputIndex;
 	if(*FirstArgument=='-'){
 		switch(FirstArgument[1]){
 			#define INVALID_OPTION\
-				fputs("Invalid option '",stderr);\
+				fputs("Invalid input option '",stderr);\
 				fputs(FirstArgument,stderr);\
 				fputs("'\n",stderr);\
 				lua_close(L);\
@@ -5537,13 +5544,12 @@ int main(int ArgumentsLength,char**Arguments){
 					INVALID_OPTION;
 				}
 				if(ArgumentsLength<3){
-					fputs("Expected input after the '-e' option\n",stderr);
+					fputs("Expected input after the '-e' input option\n",stderr);
 					lua_close(L);
 					return EXIT_FAILURE;
 				}
-				CHECK_ARGUMENTS_AMOUNT(4);
 				List=MakeTokenList(Arguments[2],strlen(Arguments[2]),&State->Error);
-				Output=Arguments[3];
+				AfterInputIndex=3;
 				break;
 			}
 			case'-':{
@@ -5551,11 +5557,10 @@ int main(int ArgumentsLength,char**Arguments){
 					INVALID_OPTION;
 				}
 				if(ArgumentsLength<3){
-					fputs("Expected a file name after the '--' option\n",stderr);
+					fputs("Expected a file name after the '--' input option\n",stderr);
 					lua_close(L);
 					return EXIT_FAILURE;
 				}
-				CHECK_ARGUMENTS_AMOUNT(4);
 				FILE*Input=fopen(Arguments[2],"r");
 				if(!Input){
 					perror("Error opening input file");
@@ -5563,13 +5568,31 @@ int main(int ArgumentsLength,char**Arguments){
 					return EXIT_FAILURE;
 				}
 				READ_FILE(Input,fclose(Input));
-				Output=Arguments[3];
+				AfterInputIndex=3;
+				break;
+			}
+			case'b':{
+				if(FirstArgument[2]){
+					INVALID_OPTION;
+				}
+				if(ArgumentsLength<3){
+					fputs("Expected a file name after the '-b' input option\n",stderr);
+					lua_close(L);
+					return EXIT_FAILURE;
+				}
+				FILE*Input=fopen(Arguments[2],"rb");
+				if(!Input){
+					perror("Error opening input file");
+					lua_close(L);
+					return EXIT_FAILURE;
+				}
+				READ_FILE(Input,fclose(Input));
+				AfterInputIndex=3;
 				break;
 			}
 			case 0:{
-				CHECK_ARGUMENTS_AMOUNT(3);
 				READ_FILE(stdin,);
-				Output=Arguments[2];
+				AfterInputIndex=2;
 				break;
 			}
 			default:{
@@ -5578,7 +5601,6 @@ int main(int ArgumentsLength,char**Arguments){
 			#undef INVALID_OPTION
 		}
 	}else{
-		CHECK_ARGUMENTS_AMOUNT(3);
 		FILE*Input=fopen(FirstArgument,"r");
 		if(!Input){
 			perror("Error opening input file");
@@ -5586,9 +5608,8 @@ int main(int ArgumentsLength,char**Arguments){
 			return EXIT_FAILURE;
 		}
 		READ_FILE(Input,fclose(Input));
-		Output=Arguments[2];
+		AfterInputIndex=2;
 	}
-	#undef CHECK_ARGUMENTS_AMOUNT
 	#undef READ_ERROR
 	#undef READ_FILE
 	if(State->Error.Message){
@@ -5602,6 +5623,63 @@ int main(int ArgumentsLength,char**Arguments){
 		(State->Start.Next=List.First)->Previous=&State->Start;
 		(State->End.Previous=List.Last)->Next=&State->End;
 	}
+	const char*Output;
+	const char*OutputMode;
+	#define CHECK_ARGUMENTS_AMOUNT(Amount)\
+		if(AfterInputIndex+(Amount)!=ArgumentsLength){\
+			fputs("Too many options provided\n",stderr);\
+			lua_close(L);\
+			return EXIT_FAILURE;\
+		}
+	if(AfterInputIndex==ArgumentsLength){
+		Output=0;
+	}else if(*(FirstArgument=Arguments[AfterInputIndex])=='-'){
+		#define INVALID_OPTION\
+				fputs("Invalid output option '",stderr);\
+				fputs(FirstArgument,stderr);\
+				fputs("'\n",stderr);\
+				lua_close(L);\
+				return EXIT_FAILURE
+		switch(FirstArgument[1]){
+			case'-':{
+				if(FirstArgument[2]){
+					INVALID_OPTION;
+				}
+				if(AfterInputIndex+1==ArgumentsLength){
+					fputs("Expected a file name after the '--' output option\n",stderr);
+					lua_close(L);
+					return EXIT_FAILURE;
+				}
+				CHECK_ARGUMENTS_AMOUNT(2);
+				Output=Arguments[AfterInputIndex+1];
+				OutputMode="w";
+				break;
+			}
+			case'b':{
+				if(FirstArgument[2]){
+					INVALID_OPTION;
+				}
+				if(AfterInputIndex+1==ArgumentsLength){
+					fputs("Expected a file name after the '-b' output option\n",stderr);
+					lua_close(L);
+					return EXIT_FAILURE;
+				}
+				CHECK_ARGUMENTS_AMOUNT(2);
+				Output=Arguments[AfterInputIndex+1];
+				OutputMode="wb";
+				break;
+			}
+			default:{
+				INVALID_OPTION;
+			}
+		}
+		#undef INVALID_OPTION
+	}else{
+		CHECK_ARGUMENTS_AMOUNT(1);
+		Output=FirstArgument;
+		OutputMode="w";
+	}
+	#undef CHECK_ARGUMENTS_AMOUNT
 	Token*Printing=HandleDollars(State->Start.Next,State,L);
 	if(State->Error.Message){
 		fputs("Error during evaluation:\n",stderr);
@@ -5611,7 +5689,7 @@ int main(int ArgumentsLength,char**Arguments){
 		return EXIT_FAILURE;
 	}
 	if(Output){
-		FILE*File=fopen(Output,"w");
+		FILE*File=fopen(Output,OutputMode);
 		if(!File){
 			perror("Error opening output file");
 			lua_close(L);

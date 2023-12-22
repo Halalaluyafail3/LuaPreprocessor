@@ -12,15 +12,18 @@ This information will be generated when invoking the preprocessor with no argume
 ```
 usage: ./Preprocessor input [output]
 Available input options:
-  -e in  use the argument 'in' as input
-  -- f   use the file 'f' as input
-  -      use the standard input as input
   f      use the file 'f' as input, if it doesn't begin with '-'
+  -      use the standard input as input
+  -- f   use the file 'f' as input
+  -b f   use the file 'f' as input, opened in binary mode
+  -e in  use the argument 'in' as input
 Available output options:
-  f      use the file 'f' as output
-         or use the standout output if no output is provided
+         use the standout output if nothing is provided
+  f      use the file 'f' as output, if it doesn't begin with '-'
+  -- f   use the file 'f' as output
+  -b f   use the file 'f' as output, opened in binary mode
 ```
-Input is specified by a file name, stdin with `-`, or as a program argument with `-e`. Output is a file name, or stdout if nothing is provided. In the exceptional case where a file name begins with `-`, a special case is made for `--` to interpret the next argument as a file name. All files are opened in text mode.
+The input will be read from the specified file, standard input, or the provided program argument. The output will be written to the specified file, or standard output if nothing is specified. By default, files will be used as text streams. `-b` can be specified before a file to indicate that it should be used as a binary stream. `--` can be specified before a file to allow for files that begin with a hyphen and should be used as text streams. Standard input and standard output will always be used as text streams.
 
 Example: `./Preprocessor foo.lua out.lua` reads from `foo.lua` and writes to `out.lua`
 
