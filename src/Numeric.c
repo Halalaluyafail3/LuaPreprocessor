@@ -195,10 +195,11 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 						Length=Index;\
 						break;\
 					}\
-					PARSE_EXPONENT(Exponent=0;goto Name##Float);\
+					PARSE_EXPONENT(goto Name##Integer);\
 					goto Name##Float;\
 				}\
 			}\
+			Name##Integer:;\
 			while((Reading=String[--Index])=='_');\
 			Output->IsInteger=1;\
 			Output->Integer=CharacterTo##Name##Digit(Reading);\
@@ -264,7 +265,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 					Length=Index;
 					goto Integer;
 				}
-				PARSE_EXPONENT(Exponent=0;goto Float);
+				PARSE_EXPONENT(goto Integer);
 				goto Float;
 			}
 		}
