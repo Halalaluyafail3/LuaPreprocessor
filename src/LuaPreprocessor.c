@@ -138,19 +138,27 @@ static const size_t SymbolTokenLengths[]={
 };
 /* the size must be known so the buffer for short strings/names can be as large as possible */
 #define TOKEN_EXPECTED_SIZE 64
+#define TOKEN_HEADER(Name)Token*Next##Name;Token*Previous##Name;signed char Type##Name
 typedef union Token Token;
+/* used to query how many bytes the Buffer for the short names and strings may use */
+/* it is assumed that the offset of Buffer in this structure and in the actual short structure are the same */
+/* it is also assumed that no trailing padding will be added after the actual Buffer member */
+typedef struct ShortBufferOffsetTest ShortBufferOffsetTest;
+struct ShortBufferOffsetTest{
+	TOKEN_HEADER();
+	unsigned char Length;
+	char Buffer;
+};
+static_assert(offsetof(ShortBufferOffsetTest,Buffer)<TOKEN_EXPECTED_SIZE,"");
 /* this arrangement is used to avoid as much padding as possible */
 union Token{
 	struct{
-		Token*Next;
-		Token*Previous;
-		signed char Type;
+		TOKEN_HEADER();
 	};
-	#define TOKEN_HEADER(Name)Token*Next_##Name;Token*Previous_##Name;signed char Type_##Name
 	struct{
 		TOKEN_HEADER(Short);
 		unsigned char Length;
-		char Buffer[TOKEN_EXPECTED_SIZE-offsetof(struct{TOKEN_HEADER(A);unsigned char B;char C;},C)];
+		char Buffer[TOKEN_EXPECTED_SIZE-offsetof(ShortBufferOffsetTest,Buffer)];
 	}Short;
 	struct{
 		TOKEN_HEADER(Long);
@@ -171,10 +179,10 @@ union Token{
 		signed char Type;
 		lua_Integer NotNowAmount;
 	}Symbol;
-	#undef TOKEN_HEADER
 };
 static_assert(sizeof(Token)==TOKEN_EXPECTED_SIZE,"Token is of incorrect size");
 #undef TOKEN_EXPECTED_SIZE
+#undef TOKEN_HEADER
 static_assert(sizeof((Token){0}.Short.Buffer)<=UCHAR_MAX,"Short buffer is too large");
 /* these checks just simplify the code so that basic things don't need to be checked */
 /* all keywords and built in macro names fit in short names */
