@@ -153,9 +153,6 @@ static_assert(offsetof(ShortBufferOffsetTest,Buffer)<TOKEN_EXPECTED_SIZE,"");
 /* this arrangement is used to avoid as much padding as possible */
 union Token{
 	struct{
-		TOKEN_HEADER();
-	};
-	struct{
 		TOKEN_HEADER(Short);
 		unsigned char Length;
 		char Buffer[TOKEN_EXPECTED_SIZE-offsetof(ShortBufferOffsetTest,Buffer)];
@@ -167,7 +164,7 @@ union Token{
 		char*Buffer;
 	}Long;
 	struct{
-		TOKEN_HEADER(Integer);
+		TOKEN_HEADER();
 		lua_Integer Integer;
 	};
 	struct{
