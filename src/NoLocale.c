@@ -1,3 +1,9 @@
+#ifndef LUA_PREPROCESSOR_AVOID_EXTENSIONS
+	/* split the if into two to avoid using the reserved name when the macro is defined */
+	#ifndef _POSIX_C_SOURCE
+		#define _POSIX_C_SOURCE 200809L
+	#endif
+#endif
 #include<time.h>
 #include<stdio.h>
 #include<assert.h>
@@ -8,9 +14,18 @@
 #include<stdbool.h>
 #include<inttypes.h>
 #include"NoLocale.h"
-/* each of the characters checked below should always have the same meaning regardless of shift state and position in a multibyte character */
+#ifndef LUA_PREPROCESSOR_AVOID_EXTENSIONS
+	#ifdef LC_ALL_MASK
+		#define POSIX_LOCALE_AVAILABLE 1
+	#endif
+	#ifdef _ENABLE_PER_THREAD_LOCALE
+		#define WINDOWS_PER_THREAD_LOCALE_AVAILABLE 1
+	#endif
+#endif
+/* each of the characters checked below should always have the same meaning regardless of shift state, position in a multibyte character, and locale */
 /* otherwise the locale would need to be considered and all character comparisons would need to be done with wchar_t */
 /* for example, this won't work with GB18030 or ISO2022 encoded files, but will work fine with UTF-8, EUC-JP, or any single byte codepage */
+/* notably, it is assumed that the characters @, $, and ` should have the same value across all locales which is only required in C23 */
 enum{/* it is intended that non-ASCII is supported, though not efficiently */
 	ASCII_SET=2,
 	NON_ASCII_SET=1,
@@ -144,7 +159,7 @@ bool IsSpace(char Character){
 	fputs("Error setting locale information in the C"#Name" function\n",stderr);\
 	abort()
 /* try to be thread safe, or fall back to standard setlocale */
-#ifdef LC_ALL_MASK
+#ifdef POSIX_LOCALE_AVAILABLE
 	#define SAVE_LOCALE(Returned,Name,Prototype,Expression)\
 		Returned C##Name Prototype{\
 			locale_t Locale=newlocale(LC_ALL_MASK,"C",0);\
@@ -190,7 +205,7 @@ bool IsSpace(char Character){
 			freelocale(Locale);\
 			return Result;\
 		}
-#elif defined _ENABLE_PER_THREAD_LOCALE
+#elif defined WINDOWS_PER_THREAD_LOCALE_AVAILABLE
 	#define SAVE_LOCALE(Returned,Name,Prototype,Expression)\
 		Returned C##Name Prototype{\
 			int PerThread=_configthreadlocale(_ENABLE_PER_THREAD_LOCALE);\
