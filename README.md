@@ -5,7 +5,7 @@ A preprocessor for Lua. The purpose of this is to provide compile time manipulat
 A shell file is included in src named Make.sh, it will invoke gcc with the provided arguments and all of the sources files needed to compile.
 `./Make.sh -o Preprocessor` should be good enough to compile the project into an executable named `Preprocessor`. Any extra arguments can be provided, for example to add optimizations or to modify Lua. Other than the provided shell file, use all of the source files defined in `src` except `lua.c` and `luac.c`.
 
-By default, some platform specific extensions may be used if they are defined. If this needs to be avoided, define the macro `LUA_PREPROCESSOR_AVOID_EXTENSIONS` (even a definition for zero is allowed). For example: `-DLUA_PREPROCESSOR_AVOID_EXTENSIONS`. This has no effect on Lua itself, to make Lua itself avoid using extensions you will need to define the appropriate macros that Lua excepts.
+By default, some platform specific extensions may be used if they are defined. If this needs to be avoided, define the macro `LUA_PREPROCESSOR_AVOID_EXTENSIONS` (even a definition for zero is allowed). For example: `-DLUA_PREPROCESSOR_AVOID_EXTENSIONS`. This has no effect on Lua itself, to make Lua itself avoid using extensions you will need to define the appropriate macros that Lua accepts.
 
 If you wish to bring your own libraries into the preprocessor, this can be done by modifying `Libraries.c` to load your libraries. To change the version of Lua used in the preprocessor, replace the folder in `src` that contains the current version of Lua, and update the includes in the files in `src` to use the new name. Some of the functions used may not exist in older versions of Lua.
 
