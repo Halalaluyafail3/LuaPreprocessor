@@ -185,7 +185,7 @@ static_assert(sizeof((Token){0}.Short.Buffer)<=UCHAR_MAX,"Short buffer is too la
 /* all keywords and built in macro names fit in short names */
 /* small numbers can be added to a short string's length without overflowing */
 /* doubling the length of a short string will result in a reasonable increase in size */
-/* small numbers can be subtracted from a long string's length without underflowing */
+/* small numbers can be subtracted from a long string's length without overflowing */
 static_assert(sizeof((Token){0}.Short.Buffer)<LSIZE_MAX-8,"Short buffer is way too large (too few possible long strings)");
 static_assert(sizeof((Token){0}.Short.Buffer)>=8,"Short buffer is way too small (should be at least 8 bytes)");
 enum{
