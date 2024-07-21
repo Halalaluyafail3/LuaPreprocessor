@@ -24,7 +24,7 @@
 #endif
 /* each of the characters checked below should always have the same meaning regardless of shift state, position in a multibyte character, and locale */
 /* otherwise the locale would need to be considered and all character comparisons would need to be done with wchar_t */
-/* for example, this won't work with GB18030 or ISO2022 encoded files, but will work fine with UTF-8, EUC-JP, or any single byte codepage */
+/* for example, this won't work with GB18030 or ISO-2022-JP encoded files, but will work fine with UTF-8, EUC-JP, or any single byte codepage */
 /* notably, it is assumed that the characters @, $, and ` should have the same value across all locales which is only required in C23 */
 enum{/* it is intended that non-ASCII is supported, though not efficiently */
 	ASCII_SET=2,
