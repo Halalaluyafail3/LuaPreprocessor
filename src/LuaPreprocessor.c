@@ -26,7 +26,7 @@ static_assert(INT_MIN!=-INT_MAX,"Expected two's complement");
 #else
 	#define LSIZE_MAX ((size_t)LUA_MAXINTEGER)
 #endif
-/* size of buffers for writing numbers into strings using the hex format (including nul char and a leading space) */
+/* size of buffers for writing numbers into strings using the hex format (including a nul char, a leading space, and the 0X prefix) */
 /* includes padding bits but that is acceptable */
 #define INTEGER_BUFFER_SIZE (sizeof(lua_Unsigned)>SIZE_MAX/CHAR_BIT?SIZE_MAX:sizeof(lua_Unsigned)*CHAR_BIT/4+4+!!(sizeof(lua_Unsigned)*CHAR_BIT%4))
 /* here it is assumed that MIN_EXP-MANT_DIG is the lowest subnormal exponent */
@@ -4292,7 +4292,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 		EVALUATE_BRANCH("if","the if closing bracket");
 		Skip:;
 		for(;;){
-			if(Parsing->Type==TOKEN_SHORT_NAME){
+			if(Parsing->Type<=TOKEN_SHORT_NAME){
 				if(Parsing->Short.Length==3){
 					if(memcmp(Parsing->Short.Buffer,"end",3)){
 						STATIC_ERROR(&State->Error,"Expected an 'end' to finish $if");
@@ -4332,7 +4332,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 	}else{
 		SKIP_BRANCH("if","the if closing bracket");
 		for(;;){
-			if(Parsing->Type==TOKEN_SHORT_NAME){
+			if(Parsing->Type<=TOKEN_SHORT_NAME){
 				if(Parsing->Short.Length==3){
 					if(memcmp(Parsing->Short.Buffer,"end",3)){
 						STATIC_ERROR(&State->Error,"Expected an 'end' to finish $if");
