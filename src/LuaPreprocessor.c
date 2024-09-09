@@ -115,7 +115,7 @@ enum{/* some extra symbols are defined here that aren't used in Lua, even if the
 	SYMBOL_CLOSE_BRACKET,/* ] */
 	SYMBOL_CLOSE_PARENTHESIS/* ) */
 };
-static const char*SymbolTokens[]={
+static const char*const SymbolTokens[]={
 	"(","[","{",
 	"+","-","*","/","//","%","^",
 	"==","~=","<",">","<=",">=",
@@ -248,6 +248,7 @@ static inline void FreeToken(Token*Freeing){
 	FreeContents(Freeing);
 	FreeTokenDirect(Freeing);
 }
+/* there should not be an error present in Error before the call, after the call there will either be no error or a static error (no allocated or memory errors) */
 static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Error){
 	Token Start;/* special token at the start so something is there */
 	Start.Next=0;
