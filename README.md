@@ -173,7 +173,7 @@ $now(\$lua(1)) -- 1
 ```
 
 # The preprocessor interface
-The default preprocessor state is created by the preprocessor implicitly before converting the input file to tokens, and references to this preprocessor state are provided when invoking macros which are functions or through the built in macro `lua` within the default preprocessor state. The scanning of the tokens obtained from the input file occurs within the default preprocessor state. Methods are provided on each preprocessor state that will change the preprocessor state or the tokens it contains. Each preprocessor state contains a cursor, which is used to identify the current token being viewed. This cursor will be saved when invoking a macro from within a macro. The cursor can be in the invalid state, indicating that no token is being viewed. When a macro is invoked, the cursor will by default be set to the first visible token, or the invalid state if there are no visible tokens. Every preprocessor state contains a macros table (which must be a table) that is used when searching for macros during macro expansion.
+The default preprocessor state is created by the preprocessor implicitly before converting the input file to tokens, and references to this preprocessor state are provided when invoking macros which are functions or through the built in macro `lua` within the default preprocessor state. The scanning of the tokens obtained from the input file occurs within the default preprocessor state. Methods are provided on each reference to a preprocessor state that will change the preprocessor state or the tokens it contains. Each preprocessor state contains a cursor, which is used to identify the current token being viewed. This cursor will be saved when invoking a macro from within a macro. The cursor can be in the invalid state, indicating that no token is being viewed. When a macro is invoked, the cursor will by default be set to the first visible token, or the invalid state if there are no visible tokens. Every preprocessor state contains a macros table (which must be a table) that is used when searching for macros during macro expansion.
 
 A global function `tokens` is provided that will create a new preprocessor state, and return a reference to it. The macros table is provided with the first argument. By default, this preprocessor state will contain no tokens, and the cursor will be in the invalid state. When no macro is being invoked on this preprocessor state, all tokens are visible and the references to the preprocessor state can be used.
 ```lua
@@ -201,7 +201,7 @@ Each preprocessor state contains zero or more tokens, some of these tokens may n
 
 Errors can occur during preprocessing, each preprocessing state can be in an error state. When the preprocessor state enters the error state, a string is stored containing the error information. Information will be added about the currently invoked macros as the error is returning back. The only methods accessible during an error are the methods for getting or setting an error. Errors are not recoverable within a preprocessing state, but can be handled from outside of the preprocessing state. Some possible reasons for an error to occur are: failing to find a built in macro or function to invoke, using a built in macro incorrectly, setting an error with the preprocessor interface, a function erroring during macro expansion, or a memory error.
 
-Incorrectly using the preprocessor interface or running out of memory (except when otherwise specified) will cause the method to generate an error, but no error will be set on the preprocessor state and the preprocessor state will remain unchanged.
+If a method on a reference to a preprocessor state is used incorrectly or if there is not enough memory (unless otherwise specified) the method will generate an error, but no error will be set on the preprocessor state and the preprocessor state will remain unchanged.
 
 # The methods of the preprocessor interface
 All method names use `snake_case`. When a cursor's token is mentioned the cursor must not be in the invalid state, unless stated otherwise.
@@ -246,7 +246,7 @@ All method names use `snake_case`. When a cursor's token is mentioned the cursor
 
 `get_macros()` and `set_macros(table)` will get or set (respectively) the macros table.
 
-`get_error()` will get the current error message contained in the preprocessing state, or `nil` if no error exists. This method can always be used, even when the rest of the macro API cannot.
+`get_error()` will get the current error message contained in the preprocessing state, or `nil` if no error exists. This method can always be used, even when the rest of the preprocessor interface cannot.
 
 `set_error(string)` will set the error message contained in the preprocessing state. This method will not raise an error in the calling Lua code assuming no memory errors occur (and the reference to the preprocessor state can be used), if this type of quick exiting is desired then an error should be created explicitly. If a memory error does occur then the error message will be set to a string that indicates a memory error occured, an error will be raised, and all future calls to `set_error` on the same preprocessing state will also raise a memory error (because it would be impossible to recover the error information lost before).
 
