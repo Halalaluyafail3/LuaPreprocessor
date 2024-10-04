@@ -12,7 +12,7 @@
 #include"Libraries.h"
 #include"lua-5.4.4/src/lua.h"
 #include"lua-5.4.4/src/lauxlib.h"
-/* assume that lua_Unsigned is the unsigned version of lua_Integer after integer promotions, otherwise the format strings to print lua_Unsigned used would be incorrect */
+/* assume that lua_Unsigned is the unsigned version of lua_Integer after integer promotions, otherwise the format strings used to print lua_Unsigned would be incorrect */
 static_assert(LUA_MAXINTEGER>=INT_MAX,"Expected the unsigned version of lua_Integer to not promote to a signed type");
 /* assume that size_t will not convert to a signed type in arithmetic operations (so bitwise operations are OK) */
 static_assert(SIZE_MAX>=UINT_MAX,"Expected size_t to not promote to a signed type");
