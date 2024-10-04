@@ -12,10 +12,10 @@
 #include"Libraries.h"
 #include"lua-5.4.4/src/lua.h"
 #include"lua-5.4.4/src/lauxlib.h"
-/* assume that lua_Unsigned is the unsigned version of lua_Integer, otherwise the format strings used would be incorrect */
-static_assert(LUA_MAXINTEGER>=INT_MAX,"Expected Lua integers to not require integer promotions");
+/* assume that lua_Unsigned is the unsigned version of lua_Integer after integer promotions, otherwise the format strings to print lua_Unsigned used would be incorrect */
+static_assert(LUA_MAXINTEGER>=INT_MAX,"Expected the unsigned version of lua_Integer to not promote to a signed type");
 /* assume that size_t will not convert to a signed type in arithmetic operations (so bitwise operations are OK) */
-static_assert(SIZE_MAX>=UINT_MAX,"Expected size_t to not require integer promotions");
+static_assert(SIZE_MAX>=UINT_MAX,"Expected size_t to not promote to a signed type");
 /* assume conversion from unsigned to signed is the reverse of signed to unsigned, this isn't strictly guaranteed by the standard */
 static_assert((int)UINT_MAX==-1,"Expected conversions to signed integers to wrap");
 /* assume two's complement for the same reason as above */
@@ -137,7 +137,9 @@ static const size_t SymbolTokenLengths[]={
 	1,1,1
 };
 /* the size must be known so the buffer for short strings/names can be as large as possible */
-#define TOKEN_EXPECTED_SIZE 64
+#ifndef TOKEN_EXPECTED_SIZE
+	#define TOKEN_EXPECTED_SIZE 64
+#endif
 #define TOKEN_HEADER(Name)Token*Next##Name;Token*Previous##Name;signed char Type##Name
 typedef union Token Token;
 /* used to query how many bytes the Buffer for the short names and strings may use */
