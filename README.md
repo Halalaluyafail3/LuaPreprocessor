@@ -201,7 +201,7 @@ Each preprocessor state contains zero or more tokens, some of these tokens may n
 
 Errors can occur during preprocessing, each preprocessing state can be in an error state. When the preprocessor state enters the error state, a string is stored containing the error information. Information will be added about the currently invoked macros as the error is returning back. The only methods accessible during an error are the methods for getting or setting an error. Errors are not recoverable within a preprocessing state, but can be handled from outside of the preprocessing state. Some possible reasons for an error to occur are: failing to find a built in macro or function to invoke, using a built in macro incorrectly, setting an error with the preprocessor interface, a function erroring during macro expansion, or a memory error.
 
-Incorrectly using the preprocessor interface or running out of memory (except when otherwise specified) will result in the method to generate an error, but no error will be set on the preprocessor state and the preprocessor state will remain unchanged.
+Incorrectly using the preprocessor interface or running out of memory (except when otherwise specified) will cause the method to generate an error, but no error will be set on the preprocessor state and the preprocessor state will remain unchanged.
 
 # The methods of the preprocessor interface
 All method names use `snake_case`. When a cursor's token is mentioned the cursor must not be in the invalid state, unless stated otherwise.
