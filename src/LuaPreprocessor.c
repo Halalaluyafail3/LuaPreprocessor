@@ -191,7 +191,7 @@ static_assert(sizeof((Token){0}.Short.Buffer)<=UCHAR_MAX,"Short buffer is too la
 static_assert(sizeof((Token){0}.Short.Buffer)<LSIZE_MAX-8,"Short buffer is way too large (too few possible long strings)");
 static_assert(sizeof((Token){0}.Short.Buffer)>=8,"Short buffer is way too small (should be at least 8 bytes)");
 enum{
-	ERROR_STATIC,/* static error message (Message is a string literal, Capacity is undefined) or no error message is present */
+	ERROR_STATIC,/* static error message (Message is a string literal, Capacity is undefined) or no error is present */
 	ERROR_ALLOCATED,/* allocated error message (Message is allocated, Capacity is only defined if this type is used) */
 	ERROR_MEMORY/* error allocating error message (same representation as static when an error is present) */
 };
