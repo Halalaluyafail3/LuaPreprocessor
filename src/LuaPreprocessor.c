@@ -191,16 +191,16 @@ static_assert(sizeof((Token){0}.Short.Buffer)<=UCHAR_MAX,"Short buffer is too la
 static_assert(sizeof((Token){0}.Short.Buffer)<LSIZE_MAX-8,"Short buffer is way too large (too few possible long strings)");
 static_assert(sizeof((Token){0}.Short.Buffer)>=8,"Short buffer is way too small (should be at least 8 bytes)");
 enum{
-	ERROR_STATIC,/* static error message (Message is a string literal, Capacity is undefined) */
+	ERROR_STATIC,/* static error message (Message is a string literal, Capacity is undefined) or no error message is present */
 	ERROR_ALLOCATED,/* allocated error message (Message is allocated, Capacity is only defined if this type is used) */
-	ERROR_MEMORY/* error allocating error message (same representation as static) */
+	ERROR_MEMORY/* error allocating error message (same representation as static when an error is present) */
 };
 typedef struct ErrorMessage ErrorMessage;
 struct ErrorMessage{
-	char*Message;/* not null if an error is present */
+	char*Message;/* not null if and only if an error is present */
 	size_t Length;/* should only be accessed if an error is present */
 	size_t Capacity;/* Capacity<=LSIZE_MAX, Capacity>=16 (reduce reallocating many times at small sizes) */
-	signed char Type;/* ERROR_STATIC if no error is present */
+	signed char Type;/* ERROR_STATIC if no error is present, so Message is used to test if an error is present */
 };
 static inline void StaticError(ErrorMessage*Error,const char*Message,size_t Length){
 	Error->Message=(char*)Message;
