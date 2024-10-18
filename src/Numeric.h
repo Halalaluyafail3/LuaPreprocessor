@@ -3,7 +3,6 @@
 	#include<stddef.h>
 	#include<stdbool.h>
 	#include"lua-5.4.4/src/lua.h"
-	#include"lua-5.4.4/src/lauxlib.h"
 	typedef struct FloatOrInteger FloatOrInteger;
 	struct FloatOrInteger{
 		union{

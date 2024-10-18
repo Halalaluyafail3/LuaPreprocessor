@@ -6,7 +6,6 @@
 #endif
 #include<time.h>
 #include<stdio.h>
-#include<assert.h>
 #include<locale.h>
 #include<stdarg.h>
 #include<stdlib.h>
