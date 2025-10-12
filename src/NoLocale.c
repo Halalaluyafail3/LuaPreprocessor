@@ -1,4 +1,4 @@
-/* This file is licensed under the "MIT License" Copyright (c) 2023 Halalaluyafail3. See the file LICENSE or go to the following for full license details: https://github.com/Halalaluyafail3/LuaPreprocessor/blob/main/LICENSE */
+/* This file is licensed under the "MIT License" Copyright (c) 2023 Halalaluyafail3. See the file LICENSE or go to the following for full license details: https://github.com/Halalaluyafail3/LuaPreprocessor/blob/master/LICENSE */
 #ifndef LUA_PREPROCESSOR_AVOID_EXTENSIONS
 	/* split the if into two to avoid using the reserved name when the macro is defined */
 	#ifndef _POSIX_C_SOURCE
