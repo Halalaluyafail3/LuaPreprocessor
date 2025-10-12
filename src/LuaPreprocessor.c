@@ -1,3 +1,4 @@
+/* This file is licensed under the "MIT License" Copyright (c) 2023 Halalaluyafail3. See the file LICENSE or go to the following for full license details: https://github.com/Halalaluyafail3/LuaPreprocessor/blob/main/LICENSE */
 #include<float.h>
 #include<stdio.h>
 #include<assert.h>
@@ -10,11 +11,13 @@
 #include"Numeric.h"
 #include"NoLocale.h"
 #include"Libraries.h"
-#include"lua-5.4.4/src/lua.h"
-#include"lua-5.4.4/src/lauxlib.h"
+#include"lua.h"
+#include"lauxlib.h"
 /* assume that lua_Unsigned is the unsigned version of lua_Integer after integer promotions, otherwise the format strings used to print lua_Unsigned would be incorrect */
+/* for example if lua_Integer is short and unsigned short promoted to int then %#hX is the conversion specification used which expects int while lua_Unsigned is unsigned */
+/* additionally, conversion to lua_Unsigned would be wrapping to the width of int instead of lua_Integer which would add extra digits */
 static_assert(LUA_MAXINTEGER>=INT_MAX,"Expected the unsigned version of lua_Integer to not promote to a signed type");
-/* assume that size_t will not convert to a signed type in arithmetic operations (so bitwise operations are OK) */
+/* assume that size_t will not convert to a signed type in arithmetic operations (so bitwise operations are OK without adding extra conversions) */
 static_assert(SIZE_MAX>=UINT_MAX,"Expected size_t to not promote to a signed type");
 /* assume conversion from unsigned to signed is the reverse of signed to unsigned, this isn't strictly guaranteed by the standard */
 static_assert((int)UINT_MAX==-1,"Expected conversions to signed integers to wrap");
@@ -26,7 +29,7 @@ static_assert(INT_MIN!=-INT_MAX,"Expected two's complement");
 #else
 	#define LSIZE_MAX ((size_t)LUA_MAXINTEGER)
 #endif
-/* size of buffers for writing numbers into strings using the hex format (including a nul char, a leading space, and the 0X prefix) */
+/* size of buffers for writing numbers into strings using the hex format (including a nul character, a leading space, and the 0X prefix) */
 /* includes padding bits but that is acceptable */
 #define INTEGER_BUFFER_SIZE (sizeof(lua_Unsigned)>SIZE_MAX/CHAR_BIT?SIZE_MAX:sizeof(lua_Unsigned)*CHAR_BIT/4+4+!!(sizeof(lua_Unsigned)*CHAR_BIT%4))
 /* here it is assumed that MIN_EXP-MANT_DIG is the lowest subnormal exponent */
@@ -34,18 +37,20 @@ static_assert(INT_MIN!=-INT_MAX,"Expected two's complement");
 /* FLT_RADIX might not be 2, so when converting to powers of two the value should be multiplied by log2(FLT_RADIX), for simplicitly half of FLT_RADIX is used */
 #define HALF_FLT_RADIX (FLT_RADIX/2+FLT_RADIX%2)
 #define EXPONENT_MIN_DIRECTION_BASE2 (EXPONENT_MIN_DIRECTION_SUBNORM>UINTMAX_MAX/HALF_FLT_RADIX?UINTMAX_MAX:EXPONENT_MIN_DIRECTION_SUBNORM*HALF_FLT_RADIX)
-/* an extra 4 is added since the first digit might not be 1 for the smallest number */
-#define EXPONENT_MIN_DIRECTION (EXPONENT_MIN_DIRECTION_BASE2>UINTMAX_MAX-4?UINTMAX_MAX:EXPONENT_MIN_DIRECTION_BASE2+4)
-/* MAX_EXP is actually 1 larger than the maximum exponent which is fine */
+/* an extra 3 is added since the first digit might not be 1 for the smallest number */
+#define EXPONENT_MIN_DIRECTION (EXPONENT_MIN_DIRECTION_BASE2>UINTMAX_MAX-3?UINTMAX_MAX:EXPONENT_MIN_DIRECTION_BASE2+3)
 #define EXPONENT_MAX_DIRECTION_BASE2 (l_floatatt(MAX_EXP)>UINTMAX_MAX/HALF_FLT_RADIX?UINTMAX_MAX:(uintmax_t)l_floatatt(MAX_EXP)*HALF_FLT_RADIX)
-/* an extra 4 is added since %A can have the first digit be zero for subnormal numbers */
-#define EXPONENT_MAX_DIRECTION (EXPONENT_MAX_DIRECTION_BASE2>UINTMAX_MAX-4?UINTMAX_MAX:EXPONENT_MAX_DIRECTION_BASE2+4)
+/* minus one because MAX_EXP is one more than is representable */
+#define EXPONENT_MAX_DIRECTION (EXPONENT_MAX_DIRECTION_BASE2-1)
 /* should be at least as large as the maximum possible exponent generated from %A */
 #define MAX_EXPONENT (EXPONENT_MIN_DIRECTION>EXPONENT_MAX_DIRECTION?EXPONENT_MIN_DIRECTION:EXPONENT_MAX_DIRECTION)
 /* should be at least as large as the maximum number of binary digits needed to represent the number */
 #define MAX_FLOAT_DIGITS (l_floatatt(MANT_DIG)>UINTMAX_MAX/HALF_FLT_RADIX?UINTMAX_MAX:l_floatatt(MANT_DIG)*HALF_FLT_RADIX)
+/* the number 11 comes from: a leading space, the 0X prefix, the P+/P- exponent suffix, a nul character, a decimal point, a leading zero after the 0X prefix, two exponent digits, and a digit after the decimal point */
+/* it is assumed that an implementation may attempt to use as many digits as possible, e.g. 0X1.F8P+4 instead of 0X3.FP+3 */
+/* subnormal and unnormalized numbers may have leading zeros, it is assumed that leading zeros are added after the decimal point only to indicate significand digits being zero */
 /* egregiously large values of MAX_EXPONENT may be overestimated, but that is acceptable */
-#define FLOAT_BUFFER_SIZE (MAX_FLOAT_DIGITS/4+!!(MAX_FLOAT_DIGITS%4)+10+(MAX_EXPONENT>99)+(MAX_EXPONENT>999)+(MAX_EXPONENT>9999)+(MAX_EXPONENT>99999)+MAX_EXPONENT/1000000)
+#define FLOAT_BUFFER_SIZE (MAX_FLOAT_DIGITS/4+MAX_FLOAT_DIGITS%4/2+11+(MAX_EXPONENT>99)+(MAX_EXPONENT>999)+(MAX_EXPONENT>9999)+(MAX_EXPONENT>99999)+MAX_EXPONENT/1000000)
 /* sufficient to hold either an integer or float */
 #define NUMBER_BUFFER_SIZE (INTEGER_BUFFER_SIZE>FLOAT_BUFFER_SIZE?INTEGER_BUFFER_SIZE:FLOAT_BUFFER_SIZE)
 /* these functions exist to be called in protected mode by Lua to handle errors */
@@ -206,7 +211,7 @@ static inline void StaticError(ErrorMessage*Error,const char*Message,size_t Leng
 	Error->Message=(char*)Message;
 	Error->Length=Length;
 }
-#define STATIC_ERROR(Error,Message_)StaticError(Error,Message_,sizeof(Message_)-1)
+#define STATIC_ERROR(Error,Message)StaticError(Error,Message,sizeof(Message)-1)
 static inline void MemoryError(ErrorMessage*Error){
 	Error->Message="Error allocating error message";
 	Error->Length=30;
@@ -269,7 +274,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 	#define PARSE_FAIL_DIRECT(Message)\
 		STATIC_ERROR(Error,Message);\
 		goto FailDirect
-	/* errror during parsing where it is known there is at least 1 token and the last token needs its contents freed */
+	/* error during parsing where it is known there is at least 1 token and the last token needs its contents freed */
 	#define PARSE_FAIL_CONTENTS(Message)\
 		STATIC_ERROR(Error,Message);\
 		goto FailContents
@@ -485,7 +490,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 					}else{
 						Symbol->Symbol.Type=SYMBOL_CONCATENATE;
 					}
-				}else if(IsDigit(Buffer[Index])){
+				}else if(IsDecimalDigit(Buffer[Index])){
 					--Index;
 					PARSE_NUMBER;
 				}else{
@@ -544,14 +549,14 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 												if(Buffer[++StringIndex]=='\r'){\
 													++StringIndex;\
 												}\
-												BufferIndex[__VA_ARGS__]='\n';\
+												(__VA_ARGS__)[BufferIndex]='\n';\
 											}else if(Buffer[StringIndex]=='\r'){\
 												if(Buffer[++StringIndex]=='\n'){\
 													++StringIndex;\
 												}\
-												BufferIndex[__VA_ARGS__]='\n';\
+												(__VA_ARGS__)[BufferIndex]='\n';\
 											}else{\
-												BufferIndex[__VA_ARGS__]=Buffer[StringIndex++];\
+												(__VA_ARGS__)[BufferIndex]=Buffer[StringIndex++];\
 											}\
 										}
 									if(StringLength<=sizeof(Start.Short.Buffer)){
@@ -622,7 +627,8 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 						PARSE_FAIL_DIRECT("Error allocating short string");\
 					}\
 					memcpy(StringBuffer,String->Short.Buffer,String->Short.Length);\
-					String->Long.Length=String->Short.Length;\
+					unsigned char Temporary=String->Short.Length;\
+					String->Long.Length=Temporary;\
 					String->Long.Capacity=Capacity;\
 					String->Long.Buffer=StringBuffer;\
 					String->Type=TOKEN_LONG_STRING
@@ -760,19 +766,19 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 									break;\
 								}\
 								default:{\
-									if(!IsDigit(Buffer[Index])){\
+									if(!IsDecimalDigit(Buffer[Index])){\
 										Fail("Invalid escape sequence");\
 									}\
 									int Character=CharacterToDigit(Buffer[Index]);\
 									if(++Index==Length){\
 										Fail("Unfinished short string");\
 									}\
-									if(IsDigit(Buffer[Index])){\
+									if(IsDecimalDigit(Buffer[Index])){\
 										Character=Character*10+CharacterToDigit(Buffer[Index]);\
 										if(++Index==Length){\
 											Fail("Unfinished short string");\
 										}\
-										if(IsDigit(Buffer[Index])){\
+										if(IsDecimalDigit(Buffer[Index])){\
 											int LastDigit=CharacterToDigit(Buffer[Index]);\
 											if(Character>25||Character==25&&LastDigit>5){\
 												Fail("Decimal escape sequence is too large");\
@@ -932,7 +938,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 					#undef CREATE_NAME
 					break;
 				}
-				if(IsDigit(Buffer[Index])){
+				if(IsDecimalDigit(Buffer[Index])){
 					PARSE_NUMBER;
 					break;
 				}
@@ -1063,6 +1069,7 @@ static Token*HandleDollar(Token*Dollar,PreprocessorState*State,lua_State*L){
 		if(State->Error.Type==ERROR_STATIC){\
 			if(BufferLength>LSIZE_MAX-21){\
 				MemoryError(&State->Error);\
+				__VA_ARGS__;\
 			}\
 			size_t Length=BufferLength+21;\
 			if(State->Error.Length>LSIZE_MAX-Length){\
@@ -1085,17 +1092,21 @@ static Token*HandleDollar(Token*Dollar,PreprocessorState*State,lua_State*L){
 			State->Error.Type=ERROR_ALLOCATED;\
 		}else if(State->Error.Type==ERROR_ALLOCATED){\
 			if(BufferLength>LSIZE_MAX-21){\
+				free(State->Error.Message);\
 				MemoryError(&State->Error);\
+				__VA_ARGS__;\
 			}\
 			size_t Length=BufferLength+21;\
 			if(State->Error.Capacity-State->Error.Length<Length){\
 				if(State->Error.Capacity>LSIZE_MAX-Length){\
+					free(State->Error.Message);\
 					MemoryError(&State->Error);\
 					__VA_ARGS__;\
 				}\
 				size_t NewCapacity=State->Error.Capacity+Length;\
 				char*NewMessage=realloc(State->Error.Message,NewCapacity=NewCapacity>LSIZE_MAX/2?LSIZE_MAX:NewCapacity*2);\
 				if(!NewMessage){\
+					free(State->Error.Message);\
 					MemoryError(&State->Error);\
 					__VA_ARGS__;\
 				}\
@@ -1946,6 +1957,7 @@ static int MacroHandleDollar(lua_State*L){
 	if(Cursor->Type!=TOKEN_SYMBOL||Cursor->Symbol.Type!=SYMBOL_DOLLAR||Cursor->Symbol.NotNowAmount){
 		luaL_argerror(L,1,"invalid use of cursor (only a dollar sign with zero notnows can begin a macro invocation)");
 	}
+	lua_settop(L,1);
 	Token*CursorStart=State->CursorStart;
 	State->CursorStart=0;
 	State->Cursor=HandleDollar(Cursor,State,L);
@@ -1958,6 +1970,7 @@ static int MacroHandleDollar(lua_State*L){
 }
 static int MacroHandleDollarsAndNotNows(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
+	lua_settop(L,1);
 	for(Token*Cursor=State->Cursor;;){
 		if(Cursor->Type!=TOKEN_SYMBOL){
 			lua_pushboolean(L,0);
@@ -2358,7 +2371,8 @@ static Token*PredefinedNow(Token*Dollar,Token*MacroName,PreprocessorState*State,
 				return Dollar;
 			}
 			AfterMacroName->Type=TOKEN_INTEGER;
-			AfterMacroName->Integer=AfterMacroName->Float;
+			lua_Number Temporary=AfterMacroName->Float;
+			AfterMacroName->Integer=Temporary;
 			goto NowInteger;
 		}else{
 			STATIC_ERROR(&State->Error,"Expected a number or opening bracket after $now");
@@ -3313,7 +3327,8 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 				return Dollar;
 			}
 			AfterMacroName->Type=TOKEN_INTEGER;
-			AfterMacroName->Integer=AfterMacroName->Float;
+			lua_Number Temporary=AfterMacroName->Float;
+			AfterMacroName->Integer=Temporary;
 			goto NotNowInteger;
 		}else{
 			STATIC_ERROR(&State->Error,"Expected a number, semicolon, colon, double colon, question mark, or opening bracket after $notnow");
@@ -3654,7 +3669,8 @@ static Token*PredefinedToString(Token*Dollar,Token*MacroName,PreprocessorState*S
 		return Dollar;
 	}
 	memcpy(Buffer,Dollar->Short.Buffer,Dollar->Short.Length);
-	Dollar->Long.Length=Dollar->Short.Length;
+	unsigned char Temporary=Dollar->Short.Length;
+	Dollar->Long.Length=Temporary;
 	Dollar->Long.Buffer=Buffer;
 	Dollar->Long.Capacity=Capacity;
 	Dollar->Type=TOKEN_LONG_STRING;
@@ -3752,10 +3768,7 @@ static Token*PredefinedConcatenate(Token*Dollar,Token*MacroName,PreprocessorStat
 				Dollar->Long.Length=Length;\
 				Buffer=Dollar->Long.Buffer=Longest->Long.Buffer;\
 			}\
-			char*BufferOffset=Buffer+Offset;\
-			for(size_t Index=Longest->Long.Length-1;Index;--Index){\
-				BufferOffset[Index]=Buffer[Index];\
-			}\
+			memmove(Buffer+Offset,Buffer,Longest->Long.Length);\
 			Concatenating=MacroName->Next;\
 			FreeTokenDirect(MacroName);\
 			while(Concatenating!=Longest){\
@@ -5455,7 +5468,7 @@ static Token*HandleDollars(Token*First,PreprocessorState*State,lua_State*L){
 }
 int main(int ArgumentsLength,char**Arguments){
 	if(ArgumentsLength<2){
-		fputs("usage: ",stdout);
+		fputs("Usage: ",stdout);
 		fputs(ArgumentsLength&&**Arguments?*Arguments:"unknown",stdout);
 		fputs(
 			" input [output]\n"

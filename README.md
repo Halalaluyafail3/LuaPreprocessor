@@ -12,7 +12,7 @@ If you wish to bring your own libraries into the preprocessor, this can be done 
 # Usage
 This information will be generated when invoking the preprocessor with no arguments. `./Preprocessor` will be replaced by the program name.
 ```
-usage: ./Preprocessor input [output]
+Usage: ./Preprocessor input [output]
 Available input options:
   f      use the file 'f' as input, if it doesn't begin with '-'
   -      use the standard input as input
@@ -64,7 +64,7 @@ Once the built in macro or function is found to call, it will be invoked with a 
 
 When the built in macro or function returns, the visible tokens are the result of macro expansion. Generally, a macro should only try to view and manipulate tokens in a defined region, such as in a set of brackets rather than work with all visible tokens.
 
-Built in macros should only be invoked with their original name or their original name as a string literal, and should only be invoked directly by putting them in the macros table. The default preprocessing state will start with a macros table containg just the built in macros: `now`, `notnow`, `totokens`, `tostring`, `concat`, `if`, `defined`, `lua`, `none`. Here, 'brackets' is used to refer to parentheses, square brackets, or curly brackets. All types of brackets are treated equally, and when counting brackets to find the ending bracket they will be treated equally. Built in macros will scan left to right and do macro expansions, unless stated otherwise. The results of macro expansions are included in this scanning.
+Built in macros should only be invoked with their original name or their original name as a string literal, and should only be invoked directly by putting them in the macros table. The default preprocessing state will start with a macros table containing just the built in macros: `now`, `notnow`, `totokens`, `tostring`, `concat`, `if`, `defined`, `lua`, `none`. Here, 'brackets' is used to refer to parentheses, square brackets, or curly brackets. All types of brackets are treated equally, and when counting brackets to find the ending bracket they will be treated equally. Built in macros will scan left to right and do macro expansions, unless stated otherwise. The results of macro expansions are included in this scanning.
 
 # The built in macros
 * `none`: Removes the symbol `$` and the string literal or name `none`.
@@ -236,7 +236,7 @@ All method names use `snake_case`. When a cursor's token is mentioned the cursor
 
 `handle_dollar()` will do a macro expansion. The cursor's token must be a `$` symbol without any 'not nows'. The cursor will point at the first token of the macro expansion, or will be set in the invalid state if the macro expansion is empty. If an error is set during macro expansion, this method will raise an error.
 
-`handle_dollar_and_not_nows()` will do macro expansion like `handle_dollar()` zero or more times until the cursor's token is in the invalid state or is not a `$` symbol without any 'not nows'. Then, if the cursor's token is not in thhe invalid state and is a symbol with one or more 'not nows', one 'not now' will be removed and `true` will be returned. In all other cases, `false` will be returned.
+`handle_dollar_and_not_nows()` will do macro expansion like `handle_dollar()` zero or more times until the cursor's token is in the invalid state or is not a `$` symbol without any 'not nows'. Then, if the cursor's token is not in the invalid state and is a symbol with one or more 'not nows', one 'not now' will be removed and `true` will be returned. In all other cases, `false` will be returned.
 
 `copy(other_preprocessing_state)` will copy the type, contents, and 'not nows' (for symbols) of the provided preprocessing state's cursor's token into the cursor's token (of the preprocessing state which the method was used on). The other preprocessing state must be in a state where the preprocessing interface can be used with it.
 

@@ -1,8 +1,9 @@
+/* This file is licensed under the "MIT License" Copyright (c) 2023 Halalaluyafail3. See the file LICENSE or go to the following for full license details: https://github.com/Halalaluyafail3/LuaPreprocessor/blob/main/LICENSE */
 #ifndef NUMERIC_H
 	#define NUMERIC_H
 	#include<stddef.h>
 	#include<stdbool.h>
-	#include"lua-5.4.4/src/lua.h"
+	#include"lua.h"
 	typedef struct FloatOrInteger FloatOrInteger;
 	struct FloatOrInteger{
 		union{

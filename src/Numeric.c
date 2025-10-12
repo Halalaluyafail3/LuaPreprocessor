@@ -1,10 +1,11 @@
+/* This file is licensed under the "MIT License" Copyright (c) 2023 Halalaluyafail3. See the file LICENSE or go to the following for full license details: https://github.com/Halalaluyafail3/LuaPreprocessor/blob/main/LICENSE */
 #include<float.h>
 #include<stddef.h>
 #include<tgmath.h>
 #include<stdbool.h>
 #include"Numeric.h"
 #include"NoLocale.h"
-#include"lua-5.4.4/src/lua.h"
+#include"lua.h"
 /* assume lua_Integer to lua_Number conversions never fail, specifically LUA_MININTEGER must not be outside the range of values representable by lua_Number */
 /* this assumption is also made by Lua, which will do lua_Integer to lua_Number conversions without checking the range first */
 bool IntegerFloatFitsInInteger(lua_Number IntegerFloat){/* integers, infinities, and NaNs are ok as arguments */
@@ -40,7 +41,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				Length=Index;\
 				__VA_ARGS__;\
 			}\
-			if(IsDigit(Reading=String[ExponentIndex])){\
+			if(IsDecimalDigit(Reading=String[ExponentIndex])){\
 				break;\
 			}\
 			if(Reading!='_'){\
@@ -56,7 +57,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				Length=Index;\
 				__VA_ARGS__;\
 			}\
-			if(IsDigit(Reading=String[ExponentIndex])){\
+			if(IsDecimalDigit(Reading=String[ExponentIndex])){\
 				ExponentIsPositive=1;\
 				break;\
 			}\
@@ -78,7 +79,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		}\
 		size_t ExponentStart=ExponentIndex;\
 		while(++ExponentIndex!=Length){/* numbers are read right to left to keep as much precision as possible */\
-			if(!IsDigit(Reading=String[ExponentIndex])&&Reading!='_'){\
+			if(!IsDecimalDigit(Reading=String[ExponentIndex])&&Reading!='_'){\
 				Length=ExponentIndex;\
 				break;\
 			}\
@@ -99,7 +100,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				return Length;
 			}
 		}while((Reading=String[Index])=='_');
-		if(IsDigit(Reading)){
+		if(IsDecimalDigit(Reading)){
 			goto Decimal;
 		}
 		Start=Index;
@@ -113,7 +114,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 					Output->Integer=0;
 					return Start;
 				}
-				if(IsDigit(Reading=String[Index])){
+				if(IsDecimalDigit(Reading=String[Index])){
 					break;
 				}
 				if(Reading=='+'||Reading=='-'){
@@ -123,7 +124,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 							Output->Integer=0;
 							return Start;
 						}
-						if(IsDigit(Reading=String[Index])){
+						if(IsDecimalDigit(Reading=String[Index])){
 							break;
 						}
 						if(Reading!='_'){
@@ -146,7 +147,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				if(++Index==Length){
 					return Length;
 				}
-				if(!IsDigit(Reading=String[Index])&&Reading!='_'){
+				if(!IsDecimalDigit(Reading=String[Index])&&Reading!='_'){
 					return Index;
 				}
 			}
@@ -252,13 +253,13 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		Output->Integer=0;
 		return Index;
 	}
-	if(IsDigit(Reading)){
+	if(IsDecimalDigit(Reading)){
 		Decimal:;
 		for(Start=Index;;){
 			if(++Index==Length){
 				goto Integer;
 			}
-			if(!IsDigit(Reading=String[Index])&&Reading!='_'){
+			if(!IsDecimalDigit(Reading=String[Index])&&Reading!='_'){
 				if(Reading=='.'){
 					break;
 				}
@@ -272,7 +273,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		}
 		Dot:;
 		for(DigitsAmount=0;++Index!=Length;){
-			if(IsDigit(Reading=String[Index])){
+			if(IsDecimalDigit(Reading=String[Index])){
 				++DigitsAmount;
 			}else if(Reading!='_'){
 				if(MakeUppercase(Reading)!='E'){
@@ -290,7 +291,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		Output->Float=0;
 		DigitsAmount=0;
 		do{
-			if(IsDigit(Reading=String[--Index])){
+			if(IsDecimalDigit(Reading=String[--Index])){
 				lua_Number Multiple=pow((lua_Number)((Reading!='0')*9+1),Exponent+DigitsAmount++);
 				Output->Float+=Multiple?CharacterToDigit(Reading)*Multiple:(lua_Number)CharacterToDigit(Reading)/10*pow((lua_Number)10,Exponent+DigitsAmount);
 			}
@@ -312,17 +313,20 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				}else if(Reading!='_'){
 					int Digit=CharacterToDigit(Reading);
 					if(Multiple>LUA_MAXINTEGER/10){
-						Output->Float=Output->Integer+Digit*pow((lua_Number)10,DigitsAmount++);
+						lua_Integer Temporary=Output->Integer;
+						Output->Float=Temporary+Digit*pow((lua_Number)10,DigitsAmount++);
 						break;
 					}
 					Multiple*=10;
 					if(Multiple>LUA_MAXINTEGER/Digit){
-						Output->Float=Output->Integer+(lua_Number)Digit*Multiple;
+						lua_Integer Temporary=Output->Integer;
+						Output->Float=Temporary+(lua_Number)Digit*Multiple;
 						break;
 					}
 					lua_Integer DigitMultiple=Digit*Multiple;
 					if(DigitMultiple>LUA_MAXINTEGER-Output->Integer){
-						Output->Float=(lua_Number)Output->Integer+DigitMultiple;
+						lua_Integer Temporary=Output->Integer;
+						Output->Float=(lua_Number)Temporary+DigitMultiple;
 						break;
 					}
 					Output->Integer+=DigitMultiple;
@@ -347,17 +351,20 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				}else if(Reading!='_'){
 					int Digit=CharacterToDigit(Reading);
 					if(Multiple<LUA_MININTEGER/10){
-						Output->Float=Output->Integer-Digit*pow((lua_Number)10,DigitsAmount++);
+						lua_Integer Temporary=Output->Integer;
+						Output->Float=Temporary-Digit*pow((lua_Number)10,DigitsAmount++);
 						break;
 					}
 					Multiple*=10;
 					if(Multiple<LUA_MININTEGER/Digit){
-						Output->Float=Output->Integer+(lua_Number)Digit*Multiple;
+						lua_Integer Temporary=Output->Integer;
+						Output->Float=Temporary+(lua_Number)Digit*Multiple;
 						break;
 					}
 					lua_Integer DigitMultiple=Digit*Multiple;
 					if(DigitMultiple<LUA_MININTEGER-Output->Integer){
-						Output->Float=(lua_Number)Output->Integer+DigitMultiple;
+						lua_Integer Temporary=Output->Integer;
+						Output->Float=(lua_Number)Temporary+DigitMultiple;
 						break;
 					}
 					Output->Integer+=DigitMultiple;
@@ -374,7 +381,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		return Length;
 	}
 	if(Reading=='.'){/* numbers starting with a period must be followed by a digit to avoid ambiguity with names */
-		if((Start=Index+1)==Length||!IsDigit(String[Start])){
+		if((Start=Index+1)==Length||!IsDecimalDigit(String[Start])){
 			return 0;
 		}
 		DigitsAmount=1;
@@ -383,7 +390,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				Exponent=0;
 				break;
 			}
-			if(IsDigit(Reading=String[Index])){
+			if(IsDecimalDigit(Reading=String[Index])){
 				++DigitsAmount;
 			}else if(Reading!='_'){
 				if(MakeUppercase(Reading)!='E'){

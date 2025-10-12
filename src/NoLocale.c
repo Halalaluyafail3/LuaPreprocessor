@@ -1,3 +1,4 @@
+/* This file is licensed under the "MIT License" Copyright (c) 2023 Halalaluyafail3. See the file LICENSE or go to the following for full license details: https://github.com/Halalaluyafail3/LuaPreprocessor/blob/main/LICENSE */
 #ifndef LUA_PREPROCESSOR_AVOID_EXTENSIONS
 	/* split the if into two to avoid using the reserved name when the macro is defined */
 	#ifndef _POSIX_C_SOURCE
@@ -93,12 +94,12 @@ char MakeLowercase(char Character){
 		Character=='Y'?'y':Character=='Z'?'z':Character
 	);
 }
-bool IsDigit(char Character){/* contiguous 0-9 is guaranteed */
+bool IsDecimalDigit(char Character){/* contiguous 0-9 is guaranteed */
 	return IF_ASCII((unsigned)Character-'0'<10,(unsigned)(unsigned char)Character-(unsigned char)'0'<10);
 }
 bool IsHexadecimalDigit(char Character){
 	return IF_ASCII((unsigned)((unsigned)Character-'0'<10)|(Character|32U)-'a'<6,
-		IsDigit(Character)||Character=='a'||Character=='A'||Character=='b'||Character=='B'||
+		IsDecimalDigit(Character)||Character=='a'||Character=='A'||Character=='b'||Character=='B'||
 		Character=='c'||Character=='C'||Character=='d'||Character=='D'||Character=='e'||Character=='E'||Character=='f'||Character=='F'
 	);
 }
@@ -128,7 +129,7 @@ bool IsAlphabetic(char Character){
 	return IF_ASCII((Character|32U)-'a'<26,IsUppercase(Character)||IsLowercase(Character));
 }
 bool IsAlphanumeric(char Character){
-	return IF_ASCII((unsigned)((unsigned)Character-'0'<10)|(Character|32U)-'a'<26,IsDigit(Character)||IsUppercase(Character)||IsLowercase(Character));
+	return IF_ASCII((unsigned)((unsigned)Character-'0'<10)|(Character|32U)-'a'<26,IsDecimalDigit(Character)||IsUppercase(Character)||IsLowercase(Character));
 }
 bool IsPunctuation(char Character){
 	return IF_ASCII(
