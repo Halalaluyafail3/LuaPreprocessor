@@ -45,7 +45,7 @@ enum{/* it is intended that non-ASCII is supported, though not efficiently */
 size_t CountFileHeader(const char*Buffer,size_t Length){/* UTF-8 BOM */
 	return IF_ASCII(Length<3?0:((unsigned)((unsigned char)Buffer[0]==239)&(unsigned char)Buffer[1]==187&(unsigned char)Buffer[2]==191)*3,0);
 }
-int CharacterToDigit(char Character){/* the digit conversion functions assume valid inputs */
+int CharacterToDecimalDigit(char Character){/* the digit conversion functions assume valid inputs */
 	return IF_ASCII((unsigned)Character^'0',(unsigned char)Character-(unsigned char)'0');
 }
 int CharacterToHexadecimalDigit(char Character){/* the code for optimizing ASCII is awkward but intended to be maximally efficient */
@@ -61,7 +61,7 @@ int CharacterToOctalDigit(char Character){
 int CharacterToBinaryDigit(char Character){
 	return IF_ASCII((unsigned)Character^'0',(unsigned char)Character-(unsigned char)'0');
 }
-char DigitToCharacter(int Digit){
+char DecimalDigitToCharacter(int Digit){
 	return IF_ASCII((unsigned)Digit|'0',Digit+(unsigned char)'0');
 }
 char HexadecimalDigitToCharacter(int Digit){

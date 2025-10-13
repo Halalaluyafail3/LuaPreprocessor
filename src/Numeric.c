@@ -88,7 +88,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		size_t DigitExponent=0;\
 		do{\
 			if((Reading=String[--ExponentIndex])!='_'){/* Reading=='0' will use a different exponent to avoid zero*infinity */\
-				Exponent+=CharacterToDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),(lua_Number)DigitExponent++);\
+				Exponent+=CharacterToDecimalDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),(lua_Number)DigitExponent++);\
 			}\
 		}while(ExponentIndex!=ExponentStart);\
 		Exponent*=ExponentIsPositive*2-1
@@ -293,7 +293,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		do{
 			if(IsDecimalDigit(Reading=String[--Index])){
 				lua_Number Multiple=pow((lua_Number)((Reading!='0')*9+1),Exponent+DigitsAmount++);
-				Output->Float+=Multiple?CharacterToDigit(Reading)*Multiple:(lua_Number)CharacterToDigit(Reading)/10*pow((lua_Number)10,Exponent+DigitsAmount);
+				Output->Float+=Multiple?CharacterToDecimalDigit(Reading)*Multiple:(lua_Number)CharacterToDecimalDigit(Reading)/10*pow((lua_Number)10,Exponent+DigitsAmount);
 			}
 		}while(Index!=Start);
 		Output->Float*=IsPositive*2-1;
@@ -301,7 +301,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		Integer:;
 		for(DigitsAmount=1;(Reading=String[--Index])=='_';);
 		if(IsPositive){/* decimal numbers will result in floats if not representable in integers, to check this positive and negative numbers need different cases */
-			Output->Integer=CharacterToDigit(Reading);
+			Output->Integer=CharacterToDecimalDigit(Reading);
 			for(size_t Multiple=1;;){
 				if(Index==Start){
 					Output->IsInteger=1;
@@ -311,7 +311,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 					Multiple=Multiple>LUA_MAXINTEGER/10?LUA_MAXINTEGER:Multiple*10;
 					++DigitsAmount;
 				}else if(Reading!='_'){
-					int Digit=CharacterToDigit(Reading);
+					int Digit=CharacterToDecimalDigit(Reading);
 					if(Multiple>LUA_MAXINTEGER/10){
 						lua_Integer Temporary=Output->Integer;
 						Output->Float=Temporary+Digit*pow((lua_Number)10,DigitsAmount++);
@@ -335,11 +335,11 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 			}
 			while(Index!=Start){
 				if((Reading=String[--Index])!='_'){
-					Output->Float+=CharacterToDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),DigitsAmount++);
+					Output->Float+=CharacterToDecimalDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),DigitsAmount++);
 				}
 			}
 		}else{
-			Output->Integer=-CharacterToDigit(Reading);
+			Output->Integer=-CharacterToDecimalDigit(Reading);
 			for(size_t Multiple=-1;;){
 				if(Index==Start){
 					Output->IsInteger=1;
@@ -349,7 +349,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 					Multiple=Multiple<LUA_MININTEGER/10?LUA_MININTEGER:Multiple*10;
 					++DigitsAmount;
 				}else if(Reading!='_'){
-					int Digit=CharacterToDigit(Reading);
+					int Digit=CharacterToDecimalDigit(Reading);
 					if(Multiple<LUA_MININTEGER/10){
 						lua_Integer Temporary=Output->Integer;
 						Output->Float=Temporary-Digit*pow((lua_Number)10,DigitsAmount++);
@@ -373,7 +373,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 			}
 			while(Index!=Start){
 				if((Reading=String[--Index])!='_'){
-					Output->Float-=CharacterToDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),DigitsAmount++);
+					Output->Float-=CharacterToDecimalDigit(Reading)*pow((lua_Number)((Reading!='0')*9+1),DigitsAmount++);
 				}
 			}
 		}
@@ -409,7 +409,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		do{
 			if((Reading=String[--Index])!='_'){
 				lua_Number Multiple=pow((lua_Number)((Reading!='0')*9+1),Exponent-DigitsAmount--);
-				Output->Float+=Multiple?CharacterToDigit(Reading)*Multiple:(lua_Number)CharacterToDigit(Reading)/10*pow((lua_Number)10,Exponent-DigitsAmount);
+				Output->Float+=Multiple?CharacterToDecimalDigit(Reading)*Multiple:(lua_Number)CharacterToDecimalDigit(Reading)/10*pow((lua_Number)10,Exponent-DigitsAmount);
 			}
 		}while(Index!=Start);
 		Output->Float*=IsPositive*2-1;

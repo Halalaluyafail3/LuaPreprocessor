@@ -769,17 +769,17 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 									if(!IsDecimalDigit(Buffer[Index])){\
 										Fail("Invalid escape sequence");\
 									}\
-									int Character=CharacterToDigit(Buffer[Index]);\
+									int Character=CharacterToDecimalDigit(Buffer[Index]);\
 									if(++Index==Length){\
 										Fail("Unfinished short string");\
 									}\
 									if(IsDecimalDigit(Buffer[Index])){\
-										Character=Character*10+CharacterToDigit(Buffer[Index]);\
+										Character=Character*10+CharacterToDecimalDigit(Buffer[Index]);\
 										if(++Index==Length){\
 											Fail("Unfinished short string");\
 										}\
 										if(IsDecimalDigit(Buffer[Index])){\
-											int LastDigit=CharacterToDigit(Buffer[Index]);\
+											int LastDigit=CharacterToDecimalDigit(Buffer[Index]);\
 											if(Character>25||Character==25&&LastDigit>5){\
 												Fail("Decimal escape sequence is too large");\
 											}\
