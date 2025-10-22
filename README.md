@@ -193,9 +193,9 @@ local x = $lua(
     t:set_type"string" -- that is a string
     t:set_content"y" -- "y"
     t:go_to_start() -- now go back to looking at the $
-    t:handle_dollar() -- invoke this macro using all the tokens we have set up
-    p:copy(t) -- we know this string will result in 1 token
-    -- so we can copy over this token after $lua
+    t:handle_dollar() -- invoke this macro using all the tokens that have been set up
+    p:copy(t) -- this string will result in 1 token
+    -- so it can be copied over this token after $lua
 ) 1
 ```
 
