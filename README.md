@@ -195,8 +195,7 @@ local x = $lua(
     t:go_to_start() -- now go back to looking at the $
     t:handle_dollar() -- invoke this macro using all the tokens that have been set up
     p:copy(t) -- this string will result in 1 token
-    -- so it can be copied over this token after $lua
-) 1
+) 1 -- so it can be copied onto this token after $lua
 ```
 
 Each preprocessor state contains zero or more tokens, some of these tokens may not be visible at a given point in time. Tokens which are not visible cannot be interacted with in any way by the preprocessor interface. The only way to make tokens invisible is to do macro expansion, and as such it is not possible to make tokens invisible arbitrarily (e.g. making one token in the middle of several others invisible, or making tokens at the end of a sequence of tokens invisible). The purpose of hiding tokens before a macro expansion is so that code which does a macro expansion can assume that everything earlier is unchanged which facilitates left to right parsing and doing macro expansions along the way.
