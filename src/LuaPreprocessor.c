@@ -1311,11 +1311,11 @@ static PreprocessorState*PushPreprocessorState(lua_State*L){
 /* doesn't check if an error is present or if the cursor can be used */
 static PreprocessorState*GetPreprocessorStateRaw(lua_State*L,int Index){
 	if(lua_type(L,Index)!=LUA_TUSERDATA||!lua_getmetatable(L,Index)){
-		luaL_argerror(L,Index,"expected preprocessor state");
+		luaL_typeerror(L,Index,"preprocessor state");
 	}
 	lua_rawgetp(L,LUA_REGISTRYINDEX,PreprocessorStateMetatable);
 	if(!lua_rawequal(L,-1,-2)){
-		luaL_argerror(L,Index,"expected preprocessor state");
+		luaL_typeerror(L,Index,"preprocessor state");
 	}
 	lua_pop(L,2);
 	return lua_touserdata(L,Index);
