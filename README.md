@@ -76,7 +76,7 @@ $none -- Expands to nothing
     * nil, the name `nil` is the result.
     * A boolean, if this boolean is false then the name `false` is the result otherwise the name `true` is the result.
     * A number, this number will be used in the result and must not be NaN. If the number is a negative floating point number (including negative zero) the result is four tokens `(-N)` where N is the absolute value of the number as a floating point literal, otherwise it is replaced by a single numeric literal with the same value as the number. If the number is not a negative floating point number, the resulting numeric literal is an integer literal if the number is an integer and is a floating point literal if the number is a float.
-    * A string, this result is a string literal with the same contents as the string.
+    * A string, the result is a string literal with the same contents as the string.
     * A table, values are read from the table like it is an array (starting at index 1, incrementing the index until it find the first nil value). Each value should be a string, which will be converted to tokens for the result. The tokens generated from each of the strings are combined to form the result. These strings are evaluated separately, meaning tables such as `{"[[","]]"}` are not valid.
     * Nothing, if zero values are returned then the result is nothing.
 
