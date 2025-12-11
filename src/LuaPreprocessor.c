@@ -176,7 +176,7 @@ union Token{
 	};
 	struct{
 		TOKEN_HEADER(Float);
-		lua_Number Float;/* !signbit(Float)&&!isnan(Float) */
+		lua_Number Float;/* !signbit(Float)&&(isfinite(Float)||isinf(Float)) */
 	};
 	struct{
 		TOKEN_HEADER(Symbol);
@@ -1427,6 +1427,9 @@ static int MacroSetContent(lua_State*L){
 			lua_Number Float=luaL_checknumber(L,2);
 			if(isnan(Float)){
 				luaL_argerror(L,2,"invalid number (NaN isn't allowed)");
+			}
+			if(!isfinite(Float)&&!isinf(Float)){
+				luaL_argerror(L,2,"invalid number (implementation-specific nonfinite values aren't allowed)");
 			}
 			if(signbit(Float)){
 				if(Float){
@@ -4938,7 +4941,12 @@ static Token*PredefinedLua(Token*Dollar,Token*MacroName,PreprocessorState*State,
 				lua_Number Float=lua_tonumber(L,-1);
 				if(isnan(Float)){
 					lua_settop(L,Top);
-					STATIC_ERROR(&State->Error,"Expected the value returned by the $lua program to not be NAN");
+					STATIC_ERROR(&State->Error,"Expected the value returned by the $lua program to not be NaN");
+					return Dollar;
+				}
+				if(!isfinite(Float)&&!isinf(Float)){
+					lua_settop(L,Top);
+					STATIC_ERROR(&State->Error,"Expected the value returned by the $lua program to not be an implementation-specific nonfinite value");
 					return Dollar;
 				}
 				if(signbit(Float)){
