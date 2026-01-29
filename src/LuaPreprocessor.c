@@ -19,11 +19,11 @@
 static_assert(LUA_MAXINTEGER>=INT_MAX,"Expected the unsigned version of lua_Integer to not promote to a signed type");
 /* assume that size_t will not convert to a signed type in arithmetic operations (so bitwise operations are OK without adding extra conversions) */
 static_assert(SIZE_MAX>=UINT_MAX,"Expected size_t to not promote to a signed type");
-/* assume conversion from unsigned to signed is the reverse of signed to unsigned, this isn't strictly guaranteed by the standard */
+/* assume conversion from unsigned to signed is the reverse of signed to unsigned, this is not strictly guaranteed by the standard */
 static_assert((int)UINT_MAX==-1,"Expected conversions to signed integers to wrap");
 /* assume two's complement for the same reason as above */
 static_assert(INT_MIN!=-INT_MAX,"Expected two's complement");
-/* LSIZE_MAX macro is used so that the sizes of strings aren't too large for Lua, any string passed to Lua shall be no larger than this macro */
+/* LSIZE_MAX macro is used so that the sizes of strings are not too large for Lua, any string passed to Lua shall be no larger than this macro */
 #if LUA_MAXINTEGER>=SIZE_MAX
 	#define LSIZE_MAX SIZE_MAX
 #else
@@ -47,7 +47,7 @@ static_assert(INT_MIN!=-INT_MAX,"Expected two's complement");
 /* should be at least as large as the maximum number of binary digits needed to represent the number */
 #define MAX_FLOAT_DIGITS (l_floatatt(MANT_DIG)>UINTMAX_MAX/HALF_FLT_RADIX?UINTMAX_MAX:l_floatatt(MANT_DIG)*HALF_FLT_RADIX)
 /* the number 11 comes from: a leading space, the 0X prefix, the P+/P- exponent suffix, a nul character, a decimal point, a leading zero after the 0X prefix, two exponent digits, and a digit after the decimal point */
-/* it is assumed that an implementation may attempt to use as many digits as possible, e.g. 0X1.F8P+4 instead of 0X3.FP+3 */
+/* it is assumed that an implementation may attempt to use as many digits as possible, for example 0X1.F8P+4 instead of 0X3.FP+3 */
 /* subnormal and unnormalized numbers may have leading zeros, it is assumed that leading zeros are added after the decimal point only to indicate significand digits being zero */
 /* egregiously large values of MAX_EXPONENT may be overestimated, but that is acceptable */
 #define FLOAT_BUFFER_SIZE (MAX_FLOAT_DIGITS/4+MAX_FLOAT_DIGITS%4/2+11+(MAX_EXPONENT>99)+(MAX_EXPONENT>999)+(MAX_EXPONENT>9999)+(MAX_EXPONENT>99999)+MAX_EXPONENT/1000000)
@@ -72,15 +72,15 @@ enum{
 	TOKEN_INTEGER,/* an integer constant */
 	TOKEN_FLOAT,/* a floating point constant */
 	TOKEN_SYMBOL,/* a symbol */
-	TOKEN_LONG_NAME,/* a name that can't fit into the token's buffer and has an external allocated buffer */
-	TOKEN_LONG_STRING/* a string that can't fit into the token's buffer and has an external allocated buffer */
+	TOKEN_LONG_NAME,/* a name that cannot fit into the token's buffer and has an external allocated buffer */
+	TOKEN_LONG_STRING/* a string that cannot fit into the token's buffer and has an external allocated buffer */
 };
 static const char*const*const TokenNames=(const char*const[]){"string","name",0,"integer","float","symbol","name","string"}+2;
 /* length shall be less than LSIZE_MAX */
 static const size_t*const TokenNameLengths=(const size_t[]){6,4,0,7,5,6,4,6}+2;
 /* <=SYMBOL_OPEN_BRACE can be used to tell if the token is a opening bracket */
 /* >=SYMBOL_CLOSE_BRACE can be used to tell if the token is a closing bracket */
-enum{/* some extra symbols are defined here that aren't used in Lua, even if they have no special meaning here */
+enum{/* some extra symbols are defined here that are not used in Lua, even if they have no special meaning here */
 	SYMBOL_OPEN_PARENTHESIS,/* ( */
 	SYMBOL_OPEN_BRACKET,/* [ */
 	SYMBOL_OPEN_BRACE,/* { */
@@ -188,7 +188,7 @@ static_assert(sizeof(Token)==TOKEN_EXPECTED_SIZE,"Token is of incorrect size");
 #undef TOKEN_EXPECTED_SIZE
 #undef TOKEN_HEADER
 static_assert(sizeof((Token){0}.Short.Buffer)<=UCHAR_MAX,"Short buffer is too large");
-/* these checks just simplify the code so that basic things don't need to be checked */
+/* these checks just simplify the code so that basic things do not need to be checked */
 /* all keywords and built in macro names fit in short names */
 /* small numbers can be added to a short string's length without overflowing */
 /* doubling the length of a short string will result in a reasonable increase in size */
@@ -270,7 +270,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 	#define PARSE_FAIL(Message)\
 		STATIC_ERROR(Error,Message);\
 		goto Fail
-	/* error during parsing where it is known there is at least 1 token (and that the last token doesn't need its contents freed) */
+	/* error during parsing where it is known there is at least 1 token (and that the last token does not need its contents freed) */
 	#define PARSE_FAIL_DIRECT(Message)\
 		STATIC_ERROR(Error,Message);\
 		goto FailDirect
@@ -286,7 +286,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 		(Result.Last=(Name->Previous=Result.Last)->Next=Name)->Next=0
 	#define CREATE_NON_SYMBOL(Name)\
 		if(NotNowAmount){\
-			PARSE_FAIL("Only symbols may have notnows");\
+			PARSE_FAIL("Only symbols may have 'not nows'");\
 		}\
 		CREATE_NEW_TOKEN(Name);
 	#define CREATE_SYMBOL(Name)\
@@ -299,11 +299,11 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 		switch(Buffer[Index]){
 			case'\\':{
 				if(NotNowAmount==LUA_MAXINTEGER){
-					PARSE_FAIL("Too many notnows");
+					PARSE_FAIL("Too many 'not nows'");
 				}
 				++NotNowAmount;
 				if(++Index==Length){
-					PARSE_FAIL("Only symbols may have notnows");
+					PARSE_FAIL("Only symbols may have 'not nows'");
 				}
 				break;
 			}
@@ -466,7 +466,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 					CREATE_NUMBER;\
 					goto Done;\
 				}\
-				if(IsAlphanumeric(Buffer[Index])||Buffer[Index]=='_'||Buffer[Index]=='.'){/* a number must not be followed by one of these, e.g. 123abc is invalid */\
+				if(IsAlphanumeric(Buffer[Index])||Buffer[Index]=='_'||Buffer[Index]=='.'){/* a number must not be followed by one of these, for example 123abc is invalid */\
 					PARSE_FAIL("Invalid number");\
 				}\
 				CREATE_NUMBER
@@ -992,7 +992,7 @@ static TokenList MakeTokenList(const char*Buffer,size_t Length,ErrorMessage*Erro
 	#undef CREATE_SYMBOL
 	Done:;
 	if(NotNowAmount){
-		PARSE_FAIL("Invalid notnows");
+		PARSE_FAIL("Invalid 'not nows'");
 	}
 	#undef PARSE_FAIL
 	#undef PARSE_FAIL_DIRECT
@@ -1308,7 +1308,7 @@ static PreprocessorState*PushPreprocessorState(lua_State*L){
 	State->Error.Type=ERROR_STATIC;
 	return State;
 }
-/* doesn't check if an error is present or if the cursor can be used */
+/* does not check if an error is present or if the cursor can be used */
 static PreprocessorState*GetPreprocessorStateRaw(lua_State*L,int Index){
 	if(lua_type(L,Index)!=LUA_TUSERDATA||!lua_getmetatable(L,Index)){
 		luaL_typeerror(L,Index,"preprocessor state");
@@ -1426,14 +1426,14 @@ static int MacroSetContent(lua_State*L){
 		case TOKEN_FLOAT:{
 			lua_Number Float=luaL_checknumber(L,2);
 			if(isnan(Float)){
-				luaL_argerror(L,2,"invalid number (NaN isn't allowed)");
+				luaL_argerror(L,2,"invalid number (NaN is not allowed)");
 			}
 			if(!isfinite(Float)&&!isinf(Float)){
-				luaL_argerror(L,2,"invalid number (implementation-specific nonfinite values aren't allowed)");
+				luaL_argerror(L,2,"invalid number (implementation-specific nonfinite values are not allowed)");
 			}
 			if(signbit(Float)){
 				if(Float){
-					luaL_argerror(L,2,"invalid number (negative floats aren't allowed)");
+					luaL_argerror(L,2,"invalid number (negative floats are not allowed)");
 				}
 				Cursor->Float=0;
 			}else{
@@ -1606,7 +1606,7 @@ static int MacroGetNotNowAmount(lua_State*L){
 	if(Cursor->Type==TOKEN_SYMBOL){
 		lua_pushinteger(L,Cursor->Symbol.NotNowAmount);
 	}else if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor (no token to get the notnow amount of)");
+		luaL_argerror(L,1,"invalid use of cursor (no token to get the amount of 'not nows')");
 	}else{
 		lua_pushinteger(L,0);
 	}
@@ -1618,13 +1618,13 @@ static int MacroSetNotNowAmount(lua_State*L){
 	if(Cursor->Type==TOKEN_SYMBOL){
 		lua_Integer NotNowAmount=luaL_checkinteger(L,2);
 		if(NotNowAmount<0){
-			luaL_argerror(L,2,"notnow amount must not be negative");
+			luaL_argerror(L,2,"'not now' amount must not be negative");
 		}
 		Cursor->Symbol.NotNowAmount=NotNowAmount;
 	}else if(!Cursor->Type){
-		luaL_argerror(L,1,"invalid use of cursor (no token to set the not notnow amount of)");
+		luaL_argerror(L,1,"invalid use of cursor (no token to set the amount of 'not nows')");
 	}else if(luaL_checkinteger(L,2)){
-		luaL_argerror(L,2,"notnow for non-symbol must be zero");
+		luaL_argerror(L,2,"'not now' amount for non-symbols must be zero");
 	}
 	return 0;
 }
@@ -1958,7 +1958,7 @@ static int MacroHandleDollar(lua_State*L){
 	PreprocessorState*State=GetPreprocessorState(L,1);
 	Token*Cursor=State->Cursor;
 	if(Cursor->Type!=TOKEN_SYMBOL||Cursor->Symbol.Type!=SYMBOL_DOLLAR||Cursor->Symbol.NotNowAmount){
-		luaL_argerror(L,1,"invalid use of cursor (only a dollar sign with zero notnows can begin a macro invocation)");
+		luaL_argerror(L,1,"invalid use of cursor (only a dollar sign with zero 'not nows' can begin a macro invocation)");
 	}
 	lua_settop(L,1);
 	Token*CursorStart=State->CursorStart;
@@ -2315,7 +2315,7 @@ static Token*PredefinedNow(Token*Dollar,Token*MacroName,PreprocessorState*State,
 		if(AfterMacroName->Type==TOKEN_SYMBOL){
 			if(AfterMacroName->Symbol.Type<=SYMBOL_OPEN_BRACE){
 				if(AfterMacroName->Symbol.NotNowAmount){
-					STATIC_ERROR(&State->Error,"Expected the opening bracket after $now to not be notnow");
+					STATIC_ERROR(&State->Error,"Expected the opening bracket after $now to not have 'not nows'");
 					return Dollar;
 				}
 				Token*Nowing=AfterMacroName->Next;
@@ -2370,7 +2370,7 @@ static Token*PredefinedNow(Token*Dollar,Token*MacroName,PreprocessorState*State,
 			return Dollar;
 		}else if(AfterMacroName->Type==TOKEN_FLOAT){
 			if(!FloatFitsInInteger(AfterMacroName->Float)){
-				STATIC_ERROR(&State->Error,"Number provided to $now N doesn't fit into an int");
+				STATIC_ERROR(&State->Error,"Number provided to $now N does not fit into an int");
 				return Dollar;
 			}
 			AfterMacroName->Type=TOKEN_INTEGER;
@@ -2393,7 +2393,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 		if(AfterMacroName->Type==TOKEN_SYMBOL){
 			if(AfterMacroName->Symbol.Type==SYMBOL_SEMICOLON){
 				if(AfterMacroName->Symbol.NotNowAmount){
-					STATIC_ERROR(&State->Error,"Expected the semicolon after $notnow to not be notnow");
+					STATIC_ERROR(&State->Error,"Expected the semicolon after $notnow to not have 'not nows'");
 					return Dollar;
 				}
 				((Dollar->Next=AfterMacroName->Next)->Previous=Dollar)->Symbol.NotNowAmount=1;
@@ -2402,7 +2402,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 				return Dollar;
 			}else if(AfterMacroName->Symbol.Type==SYMBOL_COLON){
 				if(AfterMacroName->Symbol.NotNowAmount){
-					STATIC_ERROR(&State->Error,"Expected the colon after $notnow to not be notnow");
+					STATIC_ERROR(&State->Error,"Expected the colon after $notnow to not have 'not nows'");
 					return Dollar;
 				}
 				Token*NotNowing=AfterMacroName->Next;
@@ -2430,7 +2430,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 				return NotNowing;
 			}else if(AfterMacroName->Symbol.Type<=SYMBOL_OPEN_BRACE){
 				if(AfterMacroName->Symbol.NotNowAmount){
-					STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow to not be notnow");
+					STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow to not have 'not nows'");
 					return Dollar;
 				}
 				Token*NotNowing=AfterMacroName->Next;
@@ -2467,7 +2467,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 				}
 			}else if(AfterMacroName->Symbol.Type==SYMBOL_LABEL){
 				if(AfterMacroName->Symbol.NotNowAmount){
-					STATIC_ERROR(&State->Error,"Expected the double colon after $notnow to not be notnow");
+					STATIC_ERROR(&State->Error,"Expected the double colon after $notnow to not have 'not nows'");
 					return Dollar;
 				}
 				Token*OpenBracket=AfterMacroName->Next;
@@ -2489,7 +2489,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 					}
 				}
 				if(OpenBracket->Symbol.NotNowAmount){
-					STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow:: to not be notnow");
+					STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow:: to not have 'not nows'");
 					return Dollar;
 				}
 				Token*NotNowing=OpenBracket->Next;
@@ -2533,7 +2533,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 				}
 			}else if(AfterMacroName->Symbol.Type==SYMBOL_QUESTION){
 				if(AfterMacroName->Symbol.NotNowAmount){
-					STATIC_ERROR(&State->Error,"Expected the question mark after $notnow to not be notnow");
+					STATIC_ERROR(&State->Error,"Expected the question mark after $notnow to not have 'not nows'");
 					return Dollar;
 				}
 				Token*AfterQuestion=AfterMacroName->Next;
@@ -2547,7 +2547,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 					}
 					if(AfterQuestion->Symbol.Type==SYMBOL_LABEL){
 						if(AfterQuestion->Symbol.NotNowAmount){
-							STATIC_ERROR(&State->Error,"Expected the double colon after $notnow? to not be notnow");
+							STATIC_ERROR(&State->Error,"Expected the double colon after $notnow? to not have 'not nows'");
 							return Dollar;
 						}
 						Token*OpenBracket=AfterQuestion->Next;
@@ -2569,7 +2569,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 							}
 						}
 						if(OpenBracket->Symbol.NotNowAmount){
-							STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow?:: to not be notnow");
+							STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow?:: to not have 'not nows'");
 							return Dollar;
 						}
 						Token*NotNowing=OpenBracket->Next;
@@ -2712,7 +2712,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 					}
 				}
 				if(AfterQuestion->Symbol.NotNowAmount){
-					STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow? to not be notnow");
+					STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow? to not have 'not nows'");
 					return Dollar;
 				}
 				Token*NotNowing=AfterQuestion->Next;
@@ -2837,7 +2837,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 				}
 				if(AfterInteger->Symbol.Type==SYMBOL_SEMICOLON){
 					if(AfterInteger->Symbol.NotNowAmount){
-						STATIC_ERROR(&State->Error,"Expected the semicolon after $notnow N to not be notnow");
+						STATIC_ERROR(&State->Error,"Expected the semicolon after $notnow N to not have 'not nows'");
 						return Dollar;
 					}
 					((Dollar->Next=AfterInteger->Next)->Previous=Dollar)->Symbol.NotNowAmount=AfterMacroName->Integer;
@@ -2847,7 +2847,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 					return Dollar;
 				}else if(AfterInteger->Symbol.Type==SYMBOL_COLON){
 					if(AfterInteger->Symbol.NotNowAmount){
-						STATIC_ERROR(&State->Error,"Expected the colon after $notnow N to not be notnow");
+						STATIC_ERROR(&State->Error,"Expected the colon after $notnow N to not have 'not nows'");
 						return Dollar;
 					}
 					Token*NotNowing=AfterInteger->Next;
@@ -2858,7 +2858,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 						}
 						if(NotNowing->Symbol.NotNowAmount){
 							if(NotNowing->Symbol.NotNowAmount-1>LUA_MAXINTEGER-AfterMacroName->Integer){
-								STATIC_ERROR(&State->Error,"Overflow in notnows after $notnow N:");
+								STATIC_ERROR(&State->Error,"Overflow in the amount of 'not nows' after $notnow N:");
 								return Dollar;
 							}
 							NotNowing->Symbol.NotNowAmount+=AfterMacroName->Integer-1;
@@ -2881,7 +2881,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 					return NotNowing;
 				}else if(AfterInteger->Symbol.Type<=SYMBOL_OPEN_BRACE){
 					if(AfterInteger->Symbol.NotNowAmount){
-						STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow N to not be notnow");
+						STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow N to not have 'not nows'");
 						return Dollar;
 					}
 					Token*NotNowing=AfterInteger->Next;
@@ -2911,7 +2911,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 								}
 								NotNowing->Symbol.NotNowAmount=AfterMacroName->Integer;
 							}else if(NotNowing->Symbol.NotNowAmount-1>LUA_MAXINTEGER-AfterMacroName->Integer){
-								STATIC_ERROR(&State->Error,"Overflow in notnows after $notnow N");
+								STATIC_ERROR(&State->Error,"Overflow in the amount of 'not nows' after $notnow N");
 								return Dollar;
 							}else{
 								NotNowing->Symbol.NotNowAmount+=AfterMacroName->Integer-1;
@@ -2924,7 +2924,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 					}
 				}else if(AfterInteger->Symbol.Type==SYMBOL_LABEL){
 					if(AfterInteger->Symbol.NotNowAmount){
-						STATIC_ERROR(&State->Error,"Expected the double colon after $notnow N to not be notnow");
+						STATIC_ERROR(&State->Error,"Expected the double colon after $notnow N to not have 'not nows'");
 						return Dollar;
 					}
 					Token*OpenBracket=AfterInteger->Next;
@@ -2946,7 +2946,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 						}
 					}
 					if(OpenBracket->Symbol.NotNowAmount){
-						STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow N:: to not be notnow");
+						STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow N:: to not have 'not nows'");
 						return Dollar;
 					}
 					Token*NotNowing=OpenBracket->Next;
@@ -2983,7 +2983,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 								}
 								NotNowing->Symbol.NotNowAmount=AfterMacroName->Integer;
 							}else if(NotNowing->Symbol.NotNowAmount-1>LUA_MAXINTEGER-AfterMacroName->Integer){
-								STATIC_ERROR(&State->Error,"Overflow in notnows after $notnow N::");
+								STATIC_ERROR(&State->Error,"Overflow in the amount of 'not nows' after $notnow N::");
 								return Dollar;
 							}else{
 								NotNowing->Symbol.NotNowAmount+=AfterMacroName->Integer-1;
@@ -2996,7 +2996,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 					}
 				}else if(AfterInteger->Symbol.Type==SYMBOL_QUESTION){
 					if(AfterInteger->Symbol.NotNowAmount){
-						STATIC_ERROR(&State->Error,"Expected the question mark after $notnow N to not be notnow");
+						STATIC_ERROR(&State->Error,"Expected the question mark after $notnow N to not have 'not nows'");
 						return Dollar;
 					}
 					Token*AfterQuestion=AfterInteger->Next;
@@ -3010,7 +3010,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 						}
 						if(AfterQuestion->Symbol.Type==SYMBOL_LABEL){
 							if(AfterQuestion->Symbol.NotNowAmount){
-								STATIC_ERROR(&State->Error,"Expected the double colon after $notnow N? to not be notnow");
+								STATIC_ERROR(&State->Error,"Expected the double colon after $notnow N? to not have 'not nows'");
 								return Dollar;
 							}
 							Token*OpenBracket=AfterQuestion->Next;
@@ -3032,7 +3032,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 								}
 							}
 							if(OpenBracket->Symbol.NotNowAmount){
-								STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow N?:: to not be notnow");
+								STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow N?:: to not have 'not nows'");
 								return Dollar;
 							}
 							Token*NotNowing=OpenBracket->Next;
@@ -3112,7 +3112,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 								}
 								if(NotNowing->Symbol.NotNowAmount){
 									if(NotNowing->Symbol.NotNowAmount-1>LUA_MAXINTEGER-AfterMacroName->Integer){
-										STATIC_ERROR(&State->Error,"Overflow in notnows after $notnow N?");
+										STATIC_ERROR(&State->Error,"Overflow in the amount of 'not nows' after $notnow N?");
 										return Dollar;
 									}
 									NotNowing->Symbol.NotNowAmount+=AfterMacroName->Integer-1;
@@ -3148,7 +3148,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 									Last=Last->Next;
 								}else if(Last->Symbol.NotNowAmount){
 									if(Last->Symbol.NotNowAmount-1>LUA_MAXINTEGER-AfterMacroName->Integer){
-										STATIC_ERROR(&State->Error,"Overflow in notnows after $notnow N?::");
+										STATIC_ERROR(&State->Error,"Overflow in the amount of 'not nows' after $notnow N?::");
 										return Dollar;
 									}
 									Last->Symbol.NotNowAmount+=AfterMacroName->Integer-1;
@@ -3191,7 +3191,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 						}
 					}
 					if(AfterQuestion->Symbol.NotNowAmount){
-						STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow N? to not be notnow");
+						STATIC_ERROR(&State->Error,"Expected the opening bracket after $notnow N? to not have 'not nows'");
 						return Dollar;
 					}
 					Token*NotNowing=AfterQuestion->Next;
@@ -3249,7 +3249,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 						}
 						if(NotNowing->Symbol.NotNowAmount){
 							if(NotNowing->Symbol.NotNowAmount-1>LUA_MAXINTEGER-AfterMacroName->Integer){
-								STATIC_ERROR(&State->Error,"Overflow in notnows after $notnow N?");
+								STATIC_ERROR(&State->Error,"Overflow in the amount of 'not nows' after $notnow N?");
 								return Dollar;
 							}
 							NotNowing->Symbol.NotNowAmount+=AfterMacroName->Integer-1;
@@ -3284,7 +3284,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 							Last=Last->Next;
 						}else if(Last->Symbol.NotNowAmount){
 							if(Last->Symbol.NotNowAmount-1>LUA_MAXINTEGER-AfterMacroName->Integer){
-								STATIC_ERROR(&State->Error,"Overflow in notnows after $notnow N?");
+								STATIC_ERROR(&State->Error,"Overflow in the amount of 'not nows' after $notnow N?");
 								return Dollar;
 							}
 							Last->Symbol.NotNowAmount+=AfterMacroName->Integer-1;
@@ -3326,7 +3326,7 @@ static Token*PredefinedNotNow(Token*Dollar,Token*MacroName,PreprocessorState*Sta
 			}
 		}else if(AfterMacroName->Type==TOKEN_FLOAT){/* allow floats that are exactly representable as integers similar to the functions in the Lua standard library */
 			if(!FloatFitsInInteger(AfterMacroName->Float)){
-				STATIC_ERROR(&State->Error,"Number provided to $notnow N doesn't fit in an int");
+				STATIC_ERROR(&State->Error,"Number provided to $notnow N does not fit in an int");
 				return Dollar;
 			}
 			AfterMacroName->Type=TOKEN_INTEGER;
@@ -3396,7 +3396,7 @@ static Token*PredefinedToString(Token*Dollar,Token*MacroName,PreprocessorState*S
 		}
 		if(OpenBracket->Symbol.Type<=SYMBOL_OPEN_BRACE){
 			if(OpenBracket->Symbol.NotNowAmount){
-				STATIC_ERROR(&State->Error,"Expected the opening bracket after $tostring to not be notnow");
+				STATIC_ERROR(&State->Error,"Expected the opening bracket after $tostring to not have 'not nows'");
 				return Dollar;
 			}
 			break;
@@ -3635,8 +3635,8 @@ static Token*PredefinedToString(Token*Dollar,Token*MacroName,PreprocessorState*S
 						}\
 						continue;\
 					}\
-				}else if(Converting->Symbol.NotNowAmount!=1){/* could add backslashes for the notnows, but that isn't valid in Lua */\
-					STATIC_ERROR(&State->Error,"$tostring does not accept multiple notnows");\
+				}else if(Converting->Symbol.NotNowAmount!=1){/* could add backslashes for the 'not nows', but that is not valid in Lua */\
+					STATIC_ERROR(&State->Error,"$tostring does not accept multiple 'not nows'");\
 					return Dollar;\
 				}\
 				CHECK_LENGTH(SymbolTokenLengths[Converting->Symbol.Type]+NeedsSpace);\
@@ -3716,7 +3716,7 @@ static Token*PredefinedConcatenate(Token*Dollar,Token*MacroName,PreprocessorStat
 				if(Concatenating->Type==TOKEN_SYMBOL){\
 					if(Concatenating->Symbol.Type==SYMBOL_SEMICOLON){\
 						if(Concatenating->Symbol.NotNowAmount){\
-							STATIC_ERROR(&State->Error,"Expected the semicolon that finishes $concat to not be notnow");\
+							STATIC_ERROR(&State->Error,"Expected the semicolon that finishes $concat to not have 'not nows'");\
 							return Dollar;\
 						}\
 						break;\
@@ -3926,7 +3926,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 			}\
 			if(Parsing->Symbol.Type<=SYMBOL_OPEN_BRACE){\
 				if(Parsing->Symbol.NotNowAmount){\
-					STATIC_ERROR(&State->Error,"Expected the opening bracket after "AfterErrorMessage" to not be notnow");\
+					STATIC_ERROR(&State->Error,"Expected the opening bracket after "AfterErrorMessage" to not have 'not nows'");\
 					return Dollar;\
 				}\
 				Parsing=Parsing->Next;\
@@ -3934,7 +3934,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 			}\
 			if(Parsing->Symbol.Type==SYMBOL_LABEL){\
 				if(Parsing->Symbol.NotNowAmount){\
-					STATIC_ERROR(&State->Error,"Expected the double colon after "AfterErrorMessage" to not be notnow");\
+					STATIC_ERROR(&State->Error,"Expected the double colon after "AfterErrorMessage" to not have 'not nows'");\
 					return Dollar;\
 				}\
 				Parsing=Parsing->Next;\
@@ -3945,7 +3945,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 					}\
 					if(Parsing->Symbol.Type<=SYMBOL_OPEN_BRACE){\
 						if(Parsing->Symbol.NotNowAmount){\
-							STATIC_ERROR(&State->Error,"Expected the opening bracket after the double colon after "AfterErrorMessage" to not be notnow");\
+							STATIC_ERROR(&State->Error,"Expected the opening bracket after the double colon after "AfterErrorMessage" to not have 'not nows'");\
 							return Dollar;\
 						}\
 						Parsing=Parsing->Next;\
@@ -4002,7 +4002,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 			}\
 			if(Parsing->Symbol.Type>=SYMBOL_CLOSE_BRACE){\
 				if(Parsing->Symbol.NotNowAmount){\
-					STATIC_ERROR(&State->Error,"Expected the closing bracket after the "AfterErrorMessage" condition to not be notnow");\
+					STATIC_ERROR(&State->Error,"Expected the closing bracket after the "AfterErrorMessage" condition to not have 'not nows'");\
 					return Dollar;\
 				}\
 				Parsing=Parsing->Next;\
@@ -4025,7 +4025,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 			}\
 			if(Parsing->Symbol.Type<=SYMBOL_OPEN_BRACE){\
 				if(Parsing->Symbol.NotNowAmount){\
-					STATIC_ERROR(&State->Error,"Expected the opening bracket after "AfterErrorMessage" to not be notnow");\
+					STATIC_ERROR(&State->Error,"Expected the opening bracket after "AfterErrorMessage" to not have 'not nows'");\
 					return Dollar;\
 				}\
 				for(;;){\
@@ -4054,7 +4054,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 				}\
 			if(Parsing->Symbol.Type==SYMBOL_LABEL){\
 				if(Parsing->Symbol.NotNowAmount){\
-					STATIC_ERROR(&State->Error,"Expected the double colon after "AfterErrorMessage" to not be notnow");\
+					STATIC_ERROR(&State->Error,"Expected the double colon after "AfterErrorMessage" to not have 'not nows'");\
 					return Dollar;\
 				}\
 				Parsing=Parsing->Next;\
@@ -4065,7 +4065,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 					}\
 					if(Parsing->Symbol.Type<=SYMBOL_OPEN_BRACE){\
 						if(Parsing->Symbol.NotNowAmount){\
-							STATIC_ERROR(&State->Error,"Expected the opening bracket after the double colon after "AfterErrorMessage" to not be notnow");\
+							STATIC_ERROR(&State->Error,"Expected the opening bracket after the double colon after "AfterErrorMessage" to not have 'not nows'");\
 							return Dollar;\
 						}\
 						Parsing=Parsing->Next;\
@@ -4128,7 +4128,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 			}\
 			if(Parsing->Symbol.Type<=SYMBOL_OPEN_BRACE){\
 				if(Parsing->Symbol.NotNowAmount){\
-					STATIC_ERROR(&State->Error,"Expected the opening bracket after "AfterErrorMessage" to not be notnow");\
+					STATIC_ERROR(&State->Error,"Expected the opening bracket after "AfterErrorMessage" to not have 'not nows'");\
 					return Dollar;\
 				}\
 				Parsing=Parsing->Next;\
@@ -4136,7 +4136,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 			}\
 			if(Parsing->Symbol.Type==SYMBOL_LABEL){\
 				if(Parsing->Symbol.NotNowAmount){\
-					STATIC_ERROR(&State->Error,"Expected the double colon after "AfterErrorMessage" to not be notnow");\
+					STATIC_ERROR(&State->Error,"Expected the double colon after "AfterErrorMessage" to not have 'not nows'");\
 					return Dollar;\
 				}\
 				Parsing=Parsing->Next;\
@@ -4147,7 +4147,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 					}\
 					if(Parsing->Symbol.Type<=SYMBOL_OPEN_BRACE){\
 						if(Parsing->Symbol.NotNowAmount){\
-							STATIC_ERROR(&State->Error,"Expected the opening bracket after the double colon after "AfterErrorMessage" to not be notnow");\
+							STATIC_ERROR(&State->Error,"Expected the opening bracket after the double colon after "AfterErrorMessage" to not have 'not nows'");\
 							return Dollar;\
 						}\
 						Parsing=Parsing->Next;\
@@ -4211,7 +4211,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 			}\
 			if(Parsing->Symbol.Type<=SYMBOL_OPEN_BRACE){\
 				if(Parsing->Symbol.NotNowAmount){\
-					STATIC_ERROR(&State->Error,"Expected the opening bracket after "AfterErrorMessage" to not be notnow");\
+					STATIC_ERROR(&State->Error,"Expected the opening bracket after "AfterErrorMessage" to not have 'not nows'");\
 					return Dollar;\
 				}\
 				for(;;){\
@@ -4240,7 +4240,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 			}\
 			if(Parsing->Symbol.Type==SYMBOL_LABEL){\
 				if(Parsing->Symbol.NotNowAmount){\
-					STATIC_ERROR(&State->Error,"Expected the double colon after "AfterErrorMessage" to not be notnow");\
+					STATIC_ERROR(&State->Error,"Expected the double colon after "AfterErrorMessage" to not have 'not nows'");\
 					return Dollar;\
 				}\
 				Parsing=Parsing->Next;\
@@ -4251,7 +4251,7 @@ static Token*PredefinedIf(Token*Dollar,Token*MacroName,PreprocessorState*State,l
 					}\
 					if(Parsing->Symbol.Type<=SYMBOL_OPEN_BRACE){\
 						if(Parsing->Symbol.NotNowAmount){\
-							STATIC_ERROR(&State->Error,"Expected the opening bracket after the double colon after "AfterErrorMessage" to not be notnow");\
+							STATIC_ERROR(&State->Error,"Expected the opening bracket after the double colon after "AfterErrorMessage" to not have 'not nows'");\
 							return Dollar;\
 						}\
 						Parsing=Parsing->Next;\
@@ -4776,7 +4776,7 @@ static const char*LuaReader(lua_State*L,void*VoidReading,size_t*Size){
 			case TOKEN_SYMBOL:{
 				if(Reading->Parsing->Symbol.NotNowAmount){
 					if(Reading->Parsing->Symbol.NotNowAmount!=1){
-						STATIC_ERROR(&Reading->State->Error,"Expected the symbols provided to $lua to not be notnow");
+						STATIC_ERROR(&Reading->State->Error,"Expected the symbols provided to $lua to not have 'not nows'");
 						*Size=0;
 						return 0;
 					}
@@ -4831,7 +4831,7 @@ static Token*PredefinedLua(Token*Dollar,Token*MacroName,PreprocessorState*State,
 		}
 		if(Parsing->Symbol.Type<=SYMBOL_OPEN_BRACE){
 			if(Parsing->Symbol.NotNowAmount){
-				STATIC_ERROR(&State->Error,"Expected the opening bracket after $lua to not be notnow");
+				STATIC_ERROR(&State->Error,"Expected the opening bracket after $lua to not have 'not nows'");
 				return Dollar;
 			}
 			break;
@@ -5325,7 +5325,7 @@ static bool PrintTokens(Token*Printing,FILE*Output){
 								PUT_CHARACTER('x');\
 								PUT_CHARACTER(HexadecimalDigitToCharacter((unsigned)(unsigned char)Printing->Name.Buffer[Index]>>4));\
 								PUT_CHARACTER(HexadecimalDigitToCharacter((unsigned char)Printing->Name.Buffer[Index]&0XFU));\
-							}else{/* some systems will truncate bytes that don't represent characters */\
+							}else{/* some systems will truncate bytes that do not represent characters */\
 								int Result=fputc(Printing->Name.Buffer[Index],Output);\
 								if(Result==EOF&&ferror(Output)){\
 									perror("Error writing to output");\
@@ -5375,7 +5375,7 @@ static bool PrintTokens(Token*Printing,FILE*Output){
 					fputc('\n',Output);
 					fputs("Symbol '",stderr);
 					fwrite(SymbolTokens[Printing->Symbol.Type],1,SymbolTokenLengths[Printing->Symbol.Type],stderr);
-					fputs("' with extra notnow found\n",stderr);
+					fputs("' with extra 'not now' found\n",stderr);
 					return 0;
 				}
 				switch(Printing->Symbol.Type){
@@ -5481,14 +5481,14 @@ int main(int ArgumentsLength,char**Arguments){
 		fputs(
 			" input [output]\n"
 			"Available input options:\n"
-			"  f      use the file 'f' as input, if it doesn't begin with '-'\n"
+			"  f      use the file 'f' as input, if it does not begin with '-'\n"
 			"  -      use the standard input as input\n"
 			"  -- f   use the file 'f' as input\n"
 			"  -b f   use the file 'f' as input, opened in binary mode\n"
 			"  -e in  use the argument 'in' as input\n"
 			"Available output options:\n"
 			"         use the standout output if nothing is provided\n"
-			"  f      use the file 'f' as output, if it doesn't begin with '-'\n"
+			"  f      use the file 'f' as output, if it does not begin with '-'\n"
 			"  -- f   use the file 'f' as output\n"
 			"  -b f   use the file 'f' as output, opened in binary mode\n",
 			stdout

@@ -235,7 +235,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 				if(Is##Name##Digit(Reading=String[--Index])){\
 					lua_Number Multiple=pow((lua_Number)((Reading!='0')+1),Exponent+(lua_Number)DigitsAmount++*(RadixLog2));\
 					Output->Float+=Multiple?CharacterTo##Name##Digit(Reading)*Multiple:(lua_Number)CharacterTo##Name##Digit(Reading)/(Radix)*pow((lua_Number)2,Exponent+(lua_Number)DigitsAmount*(RadixLog2));\
-				}/* if the result is zero, try again with the exponent increased and the result scaled down in case the result is representable even if the multiple isn't representable */\
+				}/* if the result is zero, try again with the exponent increased and the result scaled down in case the result is representable even if the multiple is not representable */\
 			}while(Index!=Start);\
 			Output->Float*=IsPositive*2-1;\
 			return Length
