@@ -5371,13 +5371,6 @@ static bool PrintTokens(Token*Printing,FILE*Output){
 				break;
 			}
 			case TOKEN_SYMBOL:{
-				if(Printing->Symbol.NotNowAmount){
-					fputc('\n',Output);
-					fputs("Symbol '",stderr);
-					fwrite(SymbolTokens[Printing->Symbol.Type],1,SymbolTokenLengths[Printing->Symbol.Type],stderr);
-					fputs("' with extra 'not now' found\n",stderr);
-					return 0;
-				}
 				switch(Printing->Symbol.Type){
 					case SYMBOL_OPEN_BRACKET:{
 						if(Previous->Type==TOKEN_SYMBOL&&Previous->Symbol.Type==SYMBOL_OPEN_BRACKET){
@@ -5447,6 +5440,9 @@ static Token*HandleDollars(Token*First,PreprocessorState*State,lua_State*L){
 		}
 		if(First->Symbol.NotNowAmount){
 			--First->Symbol.NotNowAmount;
+			if(First->Symbol.NotNowAmount){
+				return First;
+			}
 			break;
 		}
 		if(First->Symbol.Type!=SYMBOL_DOLLAR){
@@ -5462,6 +5458,9 @@ static Token*HandleDollars(Token*First,PreprocessorState*State,lua_State*L){
 			Parsing=Parsing->Next;
 		}else if(Parsing->Symbol.NotNowAmount){
 			--Parsing->Symbol.NotNowAmount;
+			if(Parsing->Symbol.NotNowAmount){
+				return Parsing;
+			}
 			Parsing=Parsing->Next;
 		}else if(Parsing->Symbol.Type!=SYMBOL_DOLLAR){
 			Parsing=Parsing->Next;
@@ -5717,6 +5716,13 @@ int main(int ArgumentsLength,char**Arguments){
 		lua_close(L);
 		return EXIT_FAILURE;
 	}
+	if(Printing->Type==TOKEN_SYMBOL&&Printing->Symbol.NotNowAmount){
+		fputs("Symbol '",stderr);
+		fwrite(SymbolTokens[Printing->Symbol.Type],1,SymbolTokenLengths[Printing->Symbol.Type],stderr);
+		fputs("' with extra 'not now' found\n",stderr);
+		lua_close(L);
+		return EXIT_FAILURE;
+	}
 	if(Output){
 		FILE*File=fopen(Output,OutputMode);
 		if(!File){
@@ -5727,30 +5733,34 @@ int main(int ArgumentsLength,char**Arguments){
 		if(!PrintTokens(Printing,File)){
 			if(fclose(File)){
 				perror("Error closing output file");
-				lua_close(L);
-				return EXIT_FAILURE;
 			}
-			if(remove(Output)){
-				perror("Error removing output file");
-				lua_close(L);
-				return EXIT_FAILURE;
-			}
-			fputs("Output file successfully removed\n",stderr);
+			fputs("Output file may contain incorrect data\n",stderr);
 			lua_close(L);
 			return EXIT_FAILURE;
 		}
 		if(fclose(File)){
 			perror("Error closing output file");
+			fputs("Output file may contain incorrect data\n",stderr);
 			lua_close(L);
 			return EXIT_FAILURE;
 		}
+		lua_close(L);
 	}else{
 		clearerr(stdout);
 		if(!PrintTokens(Printing,stdout)){
-			lua_close(L);
+			lua_close(L);/* calling lua_close before closing files means __gc can output in the middle of error handling, but it is necessary so that Lua code cannot access stdout after closing */
+			if(fclose(stdout)){
+				perror("Error closing output file");
+			}
+			fputs("Output file may contain incorrect data\n",stderr);
+			return EXIT_FAILURE;
+		}
+		lua_close(L);
+		if(fclose(stdout)){
+			perror("Error closing output file");
+			fputs("Output file may contain incorrect data\n",stderr);
 			return EXIT_FAILURE;
 		}
 	}
-	lua_close(L);
 	return EXIT_SUCCESS;
 }
