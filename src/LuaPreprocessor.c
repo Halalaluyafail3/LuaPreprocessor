@@ -5748,7 +5748,7 @@ int main(int ArgumentsLength,char**Arguments){
 	}else{
 		clearerr(stdout);
 		if(!PrintTokens(Printing,stdout)){
-			lua_close(L);/* calling lua_close before closing files means __gc can output in the middle of error handling, but it is necessary so that Lua code cannot access stdout after closing */
+			lua_close(L);/* calling lua_close before closing stdout means __gc can output in the middle of error handling, but it is necessary so that Lua code cannot access stdout after closing */
 			if(fclose(stdout)){
 				perror("Error closing output file");
 			}
