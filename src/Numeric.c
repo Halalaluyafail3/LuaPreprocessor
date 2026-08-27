@@ -429,7 +429,7 @@ size_t StringToFloatOrInteger(const char*restrict String,size_t Length,FloatOrIn
 		#elif LUA_FLOAT_TYPE==LUA_FLOAT_LONGDOUBLE
 			Output->Float=(IsPositive*2-1)*HUGE_VALL;
 		#else
-			#error"unkown float type"
+			#error"unknown float type"
 		#endif
 		return Index+(Length<Index+8||MakeUppercase(String[Index+3])!='I'||MakeUppercase(String[Index+4])!='N'||MakeUppercase(String[Index+5])!='I'||MakeUppercase(String[Index+6])!='T'||MakeUppercase(String[Index+7])!='Y'?3:8);
 	}
